@@ -1,0 +1,804 @@
+/* Lumina Quant landing page. Scoped under .lq so it never touches the terminal's styles. */
+@import url("https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=Noto+Sans+Devanagari:wght@300;400&display=swap");
+
+.lq {
+  /* Colour */
+  --bg: #000000;
+  --bg-soft: #0a0a0a;
+  --fg: #ffffff;
+  --fg-muted: rgba(255, 255, 255, 0.68);
+  --line: rgba(255, 255, 255, 0.22);
+  --light-bg: #e6e4df;
+  --light-fg: #0b0b0b;
+  --light-muted: #3d3b36;
+  --gold: #d4af37;
+  --gold-pale: #f5e6ca;
+  --amber: #f0913f;
+  --accent-grad: linear-gradient(90deg, #f0913f, #d4af37 55%, #f5e6ca);
+  --green: #25d366;
+  --blue: #2f6bff;
+  --purple: #b620ff;
+
+  /* Type */
+  --font: "Jost", "Futura", "Avenir Next", "Century Gothic", "Nirmala UI", "Noto Sans Devanagari",
+    "Yu Gothic", "Malgun Gothic", "Microsoft YaHei", "Noto Sans KR", "Noto Sans SC", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+
+  /* Space, radius, motion */
+  --gutter: clamp(1.25rem, 8vw, 7rem);
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-pill: 999px;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  color-scheme: dark;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
+}
+
+.lq *,
+.lq *::before,
+.lq *::after {
+  box-sizing: border-box;
+}
+
+.lq :where(h1, h2, h3, p, ul, ol, figure) {
+  margin: 0;
+}
+
+.lq a {
+  color: inherit;
+}
+
+.lq :focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.lq-skip {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  z-index: 100;
+  padding: 0.75rem 1rem;
+  background: var(--fg);
+  color: var(--bg);
+  border-radius: var(--r-sm);
+  font-weight: 500;
+}
+.lq-skip:focus {
+  top: 1rem;
+}
+
+/* ------------------------------------------------------------------ header */
+
+.lq-header {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px var(--gutter);
+  pointer-events: none;
+}
+.lq-header > * {
+  pointer-events: auto;
+}
+
+.lq-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.95rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  mix-blend-mode: difference;
+}
+.lq-logo__mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--gold), var(--gold-pale));
+}
+
+.lq-header__right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.lq-header__cta {
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+  transition: border-color 0.3s var(--ease), color 0.3s var(--ease);
+}
+.lq-header__cta:hover {
+  border-color: var(--gold);
+  color: var(--gold-pale);
+}
+
+/* Floating square marker. Its colour follows the section in view (data-theme on .lq). */
+.lq-marker {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 5px solid transparent;
+  background:
+    linear-gradient(var(--bg), var(--bg)) padding-box,
+    var(--marker, var(--accent-grad)) border-box;
+  display: grid;
+  place-items: center;
+  font: 500 10px/1 var(--mono);
+  color: var(--fg);
+  cursor: pointer;
+  transition: transform 0.4s var(--ease);
+}
+.lq-marker:hover {
+  transform: rotate(45deg);
+}
+.lq[data-theme="hero"] { --marker: var(--accent-grad); }
+.lq[data-theme="dark"] { --marker: conic-gradient(from 180deg, var(--green), var(--blue), var(--green)); }
+.lq[data-theme="light"] { --marker: linear-gradient(135deg, var(--purple), #6a2bff); }
+
+.lq-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.92);
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 var(--gutter);
+  gap: 8px;
+}
+.lq-menu a,
+.lq-menu button {
+  all: unset;
+  cursor: pointer;
+  font-size: clamp(2rem, 6vw, 4.5rem);
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  width: fit-content;
+}
+.lq-menu a:hover,
+.lq-menu button:hover {
+  color: var(--gold-pale);
+}
+.lq-menu__close {
+  position: absolute !important;
+  top: 24px;
+  right: var(--gutter);
+  font-size: 1rem !important;
+  letter-spacing: 0.2em !important;
+  text-transform: uppercase;
+}
+
+/* ------------------------------------------------------------------ shared section */
+
+.lq-section {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: 18vh var(--gutter) 12vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.lq-statement {
+  position: relative;
+  z-index: 2;
+  font-size: clamp(3rem, 8vw, 7.5rem);
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  max-width: 14ch;
+  text-wrap: balance;
+}
+
+.lq-eyebrow {
+  font: 500 0.8125rem/1 var(--mono);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 28px;
+  position: relative;
+  z-index: 2;
+}
+
+.lq-body {
+  position: relative;
+  z-index: 2;
+  max-width: 38ch;
+  margin-top: 32px;
+  font-size: clamp(1.0625rem, 1.3vw, 1.25rem);
+  line-height: 1.55;
+  color: var(--fg-muted);
+  font-weight: 400;
+}
+
+.lq-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ hero */
+
+.lq-hero {
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(37, 211, 102, 0.55);
+}
+
+.lq-hero__title {
+  position: relative;
+  z-index: 2;
+  font-size: clamp(4rem, 14vw, 13rem);
+  font-weight: 300;
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  display: flex;
+  flex-direction: column;
+}
+.lq-hero__line {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.06em;
+}
+.lq-hero__line:first-child {
+  margin-left: 27vw;
+}
+.lq-hero__line:last-child {
+  margin-left: 2vw;
+}
+.lq-hero__word {
+  display: inline-block;
+}
+
+.lq-hero__sub {
+  position: relative;
+  z-index: 2;
+  margin: 40px 0 0 2vw;
+  max-width: 36ch;
+  font-size: clamp(1.0625rem, 1.3vw, 1.25rem);
+  line-height: 1.55;
+  font-weight: 400;
+  color: var(--fg-muted);
+}
+
+.lq-scroll-cue {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  font: 500 0.75rem/1 var(--mono);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  transition: opacity 0.4s var(--ease);
+}
+.lq-scroll-cue::before,
+.lq-scroll-cue::after {
+  content: "";
+  width: 1px;
+  height: 28px;
+  background: var(--line);
+}
+.lq-scroll-cue[data-hidden="true"] {
+  opacity: 0;
+}
+
+/* ------------------------------------------------------------------ swap headline */
+
+.lq-swap {
+  position: relative;
+  display: grid;
+}
+.lq-swap > span {
+  grid-area: 1 / 1;
+}
+.lq-swap__b {
+  opacity: 0;
+}
+
+/* ------------------------------------------------------------------ warped stack */
+
+.lq-warp {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.08em;
+  font-size: clamp(2.5rem, 6.5vw, 6.25rem);
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  perspective: 900px;
+}
+.lq-warp li {
+  transform-origin: left center;
+  width: fit-content;
+}
+.lq-warp li:nth-child(1) { font-weight: 300; font-style: italic; letter-spacing: -0.04em; }
+.lq-warp li:nth-child(2) { font-weight: 300; letter-spacing: -0.03em; }
+.lq-warp li:nth-child(3) { font-weight: 300; letter-spacing: -0.02em; }
+.lq-warp li:nth-child(4) { font-weight: 400; letter-spacing: -0.01em; }
+.lq-warp li:nth-child(5) {
+  font-weight: 400;
+  background: var(--accent-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ------------------------------------------------------------------ breadth + stripes */
+
+.lq-breadth__list {
+  list-style: none;
+  padding: 0;
+  margin-top: 28px;
+  position: relative;
+  z-index: 2;
+  font-size: clamp(1.5rem, 3vw, 2.5rem);
+  line-height: 1.15;
+  font-weight: 400;
+  color: var(--fg-muted);
+}
+
+.lq-stripes {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--slices, 12), 1fr);
+  overflow: hidden;
+  pointer-events: none;
+}
+.lq-stripes__slice {
+  position: relative;
+  overflow: hidden;
+  background-image: var(--tiles);
+  background-size: calc(100vw) 100%;
+  background-position: calc(var(--i) * -100vw / var(--slices, 12)) 0;
+}
+.lq-stripes::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.75) 45%, rgba(0, 0, 0, 0.35) 100%);
+}
+
+/* ------------------------------------------------------------------ gate */
+
+.lq-gate {
+  overflow: hidden;
+  align-items: center;
+  text-align: center;
+}
+.lq-gate__inner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 640px;
+}
+.lq-gate .lq-statement {
+  max-width: none;
+  font-size: clamp(2.75rem, 7vw, 6.5rem);
+}
+.lq-gate .lq-body {
+  margin-inline: auto;
+}
+
+.lq-form {
+  margin-top: 40px;
+  width: min(100%, 520px);
+  display: flex;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+}
+.lq-form input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  color: var(--fg);
+  font: 400 1.0625rem/1.4 var(--font);
+  padding: 12px 14px;
+}
+.lq-form input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+.lq-form input:focus {
+  outline: none;
+}
+.lq-form:focus-within {
+  border-color: var(--gold);
+}
+.lq-form__msg {
+  margin-top: 14px;
+  min-height: 1.5em;
+  font-size: 0.95rem;
+  font-weight: 400;
+}
+.lq-form__msg[data-kind="error"] {
+  color: #ff8a7a;
+}
+.lq-form__msg[data-kind="info"] {
+  color: var(--fg-muted);
+}
+.lq-gate__note {
+  margin-top: 6px;
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 400;
+}
+
+/* ------------------------------------------------------------------ buttons */
+
+.lq-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-width: 200px;
+  padding: 14px 20px;
+  border: 1px solid var(--green);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--fg);
+  font: 500 1rem/1 var(--font);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.3s var(--ease), border-color 0.3s var(--ease);
+}
+.lq-btn:hover {
+  background: rgba(37, 211, 102, 0.12);
+  border-color: #5df08f;
+}
+.lq-btn__arrow {
+  transition: transform 0.3s var(--ease);
+}
+.lq-btn:hover .lq-btn__arrow {
+  transform: translateX(6px);
+}
+.lq-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.lq-btn--gold {
+  border-color: var(--gold);
+  min-width: 0;
+}
+.lq-btn--gold:hover {
+  background: rgba(212, 175, 55, 0.14);
+  border-color: var(--gold-pale);
+}
+
+/* ------------------------------------------------------------------ global + stats */
+
+.lq-global {
+  justify-content: space-between;
+  gap: 12vh;
+}
+.lq-cycler {
+  display: block;
+  position: relative;
+  min-height: 1.1em;
+}
+.lq-cycler__item {
+  display: block;
+}
+.lq-global__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 40px;
+}
+.lq-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 40px 80px;
+}
+.lq-stat__value {
+  display: block;
+  font-size: clamp(2rem, 3vw, 2.75rem);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.lq-stat__label {
+  display: block;
+  margin-top: 6px;
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--fg-muted);
+}
+
+/* ------------------------------------------------------------------ beliefs banner */
+
+.lq-beliefs {
+  display: grid;
+  grid-template-columns: 1.1fr repeat(4, 1fr);
+  background: var(--accent-grad);
+  color: #120c02;
+}
+.lq-beliefs__label,
+.lq-beliefs a {
+  padding: 18px 32px;
+  font-weight: 500;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+}
+.lq-beliefs__label {
+  gap: 16px;
+}
+.lq-beliefs__arrow {
+  flex: 1;
+  height: 1px;
+  background: currentColor;
+  position: relative;
+  min-width: 40px;
+}
+.lq-beliefs__arrow::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  border-top: 1px solid currentColor;
+  border-right: 1px solid currentColor;
+  transform: rotate(45deg);
+}
+.lq-beliefs a {
+  text-decoration: none;
+  border-left: 1px solid rgba(0, 0, 0, 0.35);
+  position: relative;
+}
+.lq-beliefs a::after {
+  content: "";
+  position: absolute;
+  left: 32px;
+  right: 32px;
+  bottom: 12px;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.35s var(--ease);
+}
+.lq-beliefs a:hover::after,
+.lq-beliefs a[aria-current="true"]::after {
+  transform: scaleX(1);
+}
+
+/* ------------------------------------------------------------------ light breather */
+
+.lq-light {
+  background: var(--light-bg);
+  color: var(--light-fg);
+  min-height: auto;
+  padding-block: 16vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 64px;
+  align-items: start;
+}
+.lq-light h2 {
+  font-size: clamp(2.5rem, 5vw, 4.5rem);
+  font-weight: 300;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+}
+.lq-light p {
+  margin-top: 28px;
+  max-width: 38ch;
+  font-size: 1.125rem;
+  line-height: 1.55;
+  font-weight: 400;
+  color: var(--light-muted);
+}
+.lq-light small {
+  display: block;
+  margin-top: 28px;
+  max-width: 52ch;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--light-muted);
+  font-weight: 400;
+}
+.lq-features {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.18);
+}
+.lq-features li {
+  padding: 22px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.18);
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  gap: 12px;
+}
+.lq-features__k {
+  font: 500 0.8125rem/1.6 var(--mono);
+  color: #6a2bff;
+}
+.lq-features h3 {
+  font-size: 1.25rem;
+  font-weight: 500;
+}
+.lq-features p {
+  margin-top: 6px;
+  font-size: 1rem;
+}
+
+/* ------------------------------------------------------------------ footer */
+
+.lq-footer {
+  position: relative;
+  background:
+    radial-gradient(120% 80% at 20% 0%, rgba(240, 145, 63, 0.55), transparent 60%),
+    radial-gradient(90% 70% at 85% 30%, rgba(212, 175, 55, 0.45), transparent 60%),
+    linear-gradient(180deg, #3a2410 0%, #120b05 55%, #050302 100%);
+  overflow: hidden;
+}
+.lq-footer::before {
+  /* fine grain so the gradient reads as a textured surface */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 4px);
+  pointer-events: none;
+}
+.lq-footer__cta {
+  position: relative;
+  min-height: 70vh;
+  display: grid;
+  place-items: center;
+  padding: 12vh var(--gutter);
+}
+.lq-glass {
+  width: min(100%, 400px);
+  height: 130px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--fg);
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 400;
+  text-decoration: none;
+  transition: background 0.35s var(--ease);
+}
+@supports (backdrop-filter: blur(6px)) {
+  .lq-glass {
+    backdrop-filter: blur(6px);
+  }
+}
+.lq-glass:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.lq-footer__base {
+  position: relative;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 56px var(--gutter) 32px;
+  display: grid;
+  grid-template-columns: auto repeat(3, minmax(0, 1fr));
+  gap: 40px 56px;
+}
+.lq-footer__base h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+.lq-footer__base ul {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.lq-footer__base a,
+.lq-footer__base li {
+  font-weight: 400;
+  font-size: 0.95rem;
+  color: var(--fg-muted);
+  text-decoration: none;
+}
+.lq-footer__base a:hover {
+  color: var(--fg);
+}
+.lq-footer__legal {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 400;
+}
+
+/* ------------------------------------------------------------------ responsive */
+
+@media (max-width: 1199px) {
+  .lq-hero__line:first-child { margin-left: 18vw; }
+  .lq-beliefs { grid-template-columns: repeat(4, 1fr); }
+  .lq-beliefs__label { grid-column: 1 / -1; }
+  .lq-beliefs a:nth-child(2) { border-left: 0; }
+  .lq-footer__base { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 767px) {
+  .lq { --gutter: 20px; }
+  .lq-hero__title { font-size: clamp(3.25rem, 17vw, 5.5rem); }
+  .lq-hero__line:first-child { margin-left: 12vw; }
+  .lq-hero__line:last-child, .lq-hero__sub { margin-left: 0; }
+  .lq-statement { font-size: clamp(2.5rem, 11vw, 4rem); }
+  .lq-header__cta { display: none; }
+  .lq-beliefs {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+  }
+  .lq-beliefs > * { flex: 0 0 70vw; scroll-snap-align: start; }
+  .lq-beliefs__label { flex-basis: 85vw; }
+  .lq-beliefs a:nth-child(2) { border-left: 1px solid rgba(0, 0, 0, 0.35); }
+  .lq-light { grid-template-columns: minmax(0, 1fr); gap: 40px; }
+  .lq-global__row { flex-direction: column; align-items: stretch; }
+  .lq-global__row .lq-btn { width: 100%; }
+  .lq-form { flex-direction: column; }
+  .lq-form .lq-btn { width: 100%; }
+  /* Longer translations wrap on phones, so keep two lines for the cycler. */
+  .lq-cycler { min-height: 2.1em; }
+  /* Keep the statement readable over the glyph chart. */
+  #information .lq-canvas { opacity: 0.4; }
+  .lq-footer__base { grid-template-columns: minmax(0, 1fr); }
+  .lq-footer__base a { display: inline-block; min-height: 44px; line-height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lq *,
+  .lq *::before,
+  .lq *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
