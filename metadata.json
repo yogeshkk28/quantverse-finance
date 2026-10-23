@@ -1,0 +1,6 @@
+{
+  "name": "Lumina Quant",
+  "description": "An institutional-grade quantitative finance terminal featuring high-fidelity screeners, interactive technical charts, correlation networks, portfolio tracking, and AI-powered market sentiment analysis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
