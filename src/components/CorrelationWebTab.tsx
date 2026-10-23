@@ -14,8 +14,9 @@ export default function CorrelationWebTab({ tickers, onSelectTicker, onAlertMess
 
   // Filters state
   const [selectedSector, setSelectedSector] = useState<string>("All Sectors");
-  const [selectedIndex, setSelectedIndex] = useState<string>("S&P 500");
-  const [selectedTimePeriod, setSelectedTimePeriod] = useState<string>("30 Days");
+  const [selectedMarket, setSelectedMarket] = useState<"US" | "IN">("US");
+  const [selectedDays, setSelectedDays] = useState<number>(90);
+  const [networkError, setNetworkError] = useState<string | null>(null);
 
   // Selected node detailed view metrics
   const [clickedNode, setClickedNode] = useState<CorrelationNode | null>(null);
@@ -38,9 +39,12 @@ export default function CorrelationWebTab({ tickers, onSelectTicker, onAlertMess
     async function fetchNetwork() {
       try {
         setLoading(true);
-        const res = await fetch("/api/correlation-web");
+        setNetworkError(null);
+        const res = await fetch(`/api/correlation-web?market=${selectedMarket}&days=${selectedDays}`);
         const data = await res.json();
-        setNetworkData(data);
+        if (!res.ok) setNetworkError(data.error || "Could not compute correlations.");
+        setNetworkData({ nodes: data.nodes || [], links: data.links || [] });
+        setClickedNode(null);
       } catch (err) {
         console.error("Failed to load correlation web:", err);
       } finally {
@@ -48,7 +52,7 @@ export default function CorrelationWebTab({ tickers, onSelectTicker, onAlertMess
       }
     }
     fetchNetwork();
-  }, []);
+  }, [selectedMarket, selectedDays]);
 
   // Compute filtered sectors list dynamically
   const uniqueSectors = useMemo(() => {
@@ -272,15 +276,14 @@ export default function CorrelationWebTab({ tickers, onSelectTicker, onAlertMess
 
           {/* Index Selector */}
           <div className="flex flex-col gap-1">
-            <span className="font-mono text-[8px] tracking-[0.16em] text-white/45 font-bold uppercase">INDEX STANDARD</span>
+            <span className="font-mono text-[8px] tracking-[0.16em] text-white/45 font-bold uppercase">MARKET</span>
             <select
-              value={selectedIndex}
-              onChange={(e) => setSelectedIndex(e.target.value)}
+              value={selectedMarket}
+              onChange={(e) => setSelectedMarket(e.target.value as "US" | "IN")}
               className="bg-black border border-white/10 rounded-lg text-xs py-1.5 px-3 text-[#F2F2F2] focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30 outline-none cursor-pointer"
             >
-              <option>S&P 500</option>
-              <option>NASDAQ 100</option>
-              <option>Russell 2000</option>
+              <option value="US">United States</option>
+              <option value="IN">India (NSE)</option>
             </select>
           </div>
 
@@ -288,13 +291,13 @@ export default function CorrelationWebTab({ tickers, onSelectTicker, onAlertMess
           <div className="flex flex-col gap-1">
             <span className="font-mono text-[8px] tracking-[0.16em] text-white/45 font-bold uppercase">Time range</span>
             <select
-              value={selectedTimePeriod}
-              onChange={(e) => setSelectedTimePeriod(e.target.value)}
+              value={selectedDays}
+              onChange={(e) => setSelectedDays(Number(e.target.value))}
               className="bg-black border border-white/10 rounded-lg text-xs py-1.5 px-3 text-[#F2F2F2] focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30 outline-none cursor-pointer"
             >
-              <option>30 Days</option>
-              <option>90 Days</option>
-              <option>1 Year</option>
+              <option value={30}>30 Days</option>
+              <option value={90}>90 Days</option>
+              <option value={250}>1 Year</option>
             </select>
           </div>
 
@@ -302,7 +305,7 @@ export default function CorrelationWebTab({ tickers, onSelectTicker, onAlertMess
             <button 
               type="button"
               className="bg-[#0d0d0d] hover:bg-white/[0.04] border border-white/10 text-[#D4AF37] px-3.5 py-1.5 text-xs font-semibold rounded-lg hover:text-[#F2F2F2] transition-colors uppercase font-mono tracking-wider cursor-pointer duration-200"
-              onClick={() => onAlertMessage?.(`Filtering correlations index: Sectors: ${selectedSector}, Index: ${selectedIndex}, Period: ${selectedTimePeriod}`)}
+              onClick={() => onAlertMessage?.(`Filtering correlations index: Sectors: ${selectedSector}, Market: ${selectedMarket}, Period: ${selectedDays} days`)}
             >
               Filter Web
             </button>
@@ -315,7 +318,12 @@ export default function CorrelationWebTab({ tickers, onSelectTicker, onAlertMess
           {loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 font-mono text-xs text-white/30 bg-black/60">
               <RefreshCw className="w-4 h-4 animate-spin text-[#D4AF37]" />
-              <span>Initializing force simulation networks...</span>
+              <span>Computing return correlations...</span>
+            </div>
+          )}
+          {!loading && networkError && (
+            <div className="absolute inset-0 flex items-center justify-center font-mono text-xs text-white/50 bg-black/60 px-6 text-center">
+              {networkError}
             </div>
           )}
         </div>

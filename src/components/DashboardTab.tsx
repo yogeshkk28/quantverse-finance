@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Ticker } from "../types";
 import { TrendingUp, TrendingDown, RefreshCw, Layers, ShieldAlert, Award, Zap } from "lucide-react";
 
@@ -6,6 +6,59 @@ interface DashboardTabProps {
   tickers: Ticker[];
   onSelectTicker: (tickerId: string) => void;
 }
+
+interface FearGreedData {
+  market: "US" | "IN";
+  value: number | null;
+  label: string;
+  components: { key: string; label: string; score: number; detail: string }[];
+  asOf?: string;
+  crypto: { value: number; classification: string } | null;
+}
+
+interface MacroData {
+  available: boolean;
+  reason?: string;
+  indicators: { series: string; label: string; value: number | null; date: string | null; unit: string }[];
+}
+
+interface GlobalIndex {
+  symbol: string;
+  label: string;
+  price: number | null;
+  changePct: number | null;
+  currency: string;
+  live: boolean;
+}
+
+interface Signal {
+  id: string;
+  tickerId: string;
+  type: "BULLISH" | "BEARISH" | "NEUTRAL";
+  text: string;
+}
+
+/** Signals read straight off each ticker's real indicator values. Sample data is skipped. */
+function buildSignals(tickers: Ticker[]): Signal[] {
+  const out: Signal[] = [];
+  for (const t of tickers) {
+    if (t.source === "mock") continue;
+    if (t.macdCross) {
+      out.push({ id: `${t.id}-macd`, tickerId: t.id, type: "BULLISH", text: `${t.id}: MACD crossed above its signal line in the last 5 sessions.` });
+    }
+    if (t.rsi >= 70) {
+      out.push({ id: `${t.id}-rsi`, tickerId: t.id, type: "BEARISH", text: `${t.id}: RSI(14) at ${t.rsi.toFixed(0)}, in overbought territory.` });
+    } else if (t.rsi <= 30) {
+      out.push({ id: `${t.id}-rsi`, tickerId: t.id, type: "BULLISH", text: `${t.id}: RSI(14) at ${t.rsi.toFixed(0)}, in oversold territory.` });
+    }
+    if (t.volSurge >= 1.5) {
+      out.push({ id: `${t.id}-vol`, tickerId: t.id, type: "NEUTRAL", text: `${t.id}: volume is ${t.volSurge.toFixed(1)}x its 20-day average.` });
+    }
+  }
+  return out.slice(0, 8);
+}
+
+const formatLevel = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
 
 export default function DashboardTab({ tickers, onSelectTicker }: DashboardTabProps) {
   // Quote cycling matching screenshot behaviour
@@ -29,7 +82,7 @@ export default function DashboardTab({ tickers, onSelectTicker }: DashboardTabPr
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+    const gl = (canvas.getContext("webgl") || canvas.getContext("experimental-webgl")) as WebGLRenderingContext | null;
     if (!gl) return;
 
     // Resize handling
@@ -120,63 +173,39 @@ export default function DashboardTab({ tickers, onSelectTicker }: DashboardTabPr
     };
   }, []);
 
-  // Live Real-time simulation of Quantitative Trading Feed
-  const [newsSignals, setNewsSignals] = useState([
-    { id: 1, time: "10:42 AM", type: "BULLISH", text: "Unusual options volume detected in NVDA 900 CE. Volume spike +340% above normal levels.", active: true },
-    { id: 2, time: "10:15 AM", type: "BEARISH", text: "Macro inflation read printed slightly hotter than consensus. Core CPI 3.4% YoY vs 3.3% expected.", active: true },
-    { id: 3, time: "09:30 AM", type: "NEUTRAL", text: "NYSE Opening breadth positive (+65% advancing issues). Volume remains concentrated in mega caps.", active: true },
-  ]);
+  const signals = useMemo(() => buildSignals(tickers), [tickers]);
 
-  const [fearGreed, setFearGreed] = useState<{ value: number; classification: string }>({ value: 72, classification: "GREED" });
-  const [macroInfo, setMacroInfo] = useState<any>(null);
+  const [fngMarket, setFngMarket] = useState<"US" | "IN">("US");
+  const [fearGreed, setFearGreed] = useState<FearGreedData | null>(null);
+  const [fngLoading, setFngLoading] = useState<boolean>(true);
+  const [macro, setMacro] = useState<MacroData | null>(null);
+  const [indices, setIndices] = useState<GlobalIndex[]>([]);
 
   useEffect(() => {
-    // Call the endpoints setup in routes.ts
-    fetch("/api/fear-greed")
-      .then((res) => {
-        if (res.ok) return res.json();
-        throw new Error();
-      })
-      .then((data) => {
-        if (data && typeof data.value === "number") {
-          setFearGreed({ value: data.value, classification: data.classification });
-        }
-      })
-      .catch(() => {});
+    let cancelled = false;
+    setFngLoading(true);
+    fetch(`/api/fear-greed?market=${fngMarket}`)
+      .then((res) => res.json())
+      .then((data: FearGreedData) => { if (!cancelled) setFearGreed(data); })
+      .catch(() => { if (!cancelled) setFearGreed(null); })
+      .finally(() => { if (!cancelled) setFngLoading(false); });
+    return () => { cancelled = true; };
+  }, [fngMarket]);
 
+  useEffect(() => {
     fetch("/api/macro")
-      .then((res) => {
-        if (res.ok) return res.json();
-        throw new Error();
-      })
-      .then((data) => {
-        if (data) setMacroInfo(data);
-      })
-      .catch(() => {});
-  }, []);
+      .then((res) => res.json())
+      .then((data: MacroData) => setMacro(data))
+      .catch(() => setMacro(null));
 
-  useEffect(() => {
-    const symbols = ["NVDA", "AAPL", "MSFT", "TSLA", "AMD", "LLY", "XOM", "RELIANCE"];
-    const actions = ["block trade executed", "breakout from consolidation channel", "MA cross detected on 15m interval", "order book size imbalance observed"];
-
-    const intervalVal = setInterval(() => {
-      const matchedSym = symbols[Math.floor(Math.random() * symbols.length)];
-      const matchedAct = actions[Math.floor(Math.random() * actions.length)];
-      const matchedType = Math.random() > 0.5 ? "BULLISH" : "BEARISH";
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-      const newAlert = {
-        id: Date.now(),
-        time: timeStr,
-        type: matchedType,
-        text: `Automated Quant Alert: ${matchedSym} ${matchedType === "BULLISH" ? "positive" : "negative"} ${matchedAct}. Check chart terminal for verification.`
-      };
-
-      setNewsSignals((prev) => [newAlert, ...prev.slice(0, 5)]);
-    }, 12000);
-
-    return () => clearInterval(intervalVal);
+    const loadIndices = () =>
+      fetch("/api/global-indices")
+        .then((res) => res.json())
+        .then((data) => setIndices(Array.isArray(data.indices) ? data.indices : []))
+        .catch(() => {});
+    loadIndices();
+    const id = setInterval(loadIndices, 60_000);
+    return () => clearInterval(id);
   }, []);
 
   // Sort tickers to display top gainers / premium movers
@@ -218,58 +247,30 @@ export default function DashboardTab({ tickers, onSelectTicker }: DashboardTabPr
       {/* INFINITE INDEX TICKER */}
       <div className="w-full bg-black border-y border-white/10 py-3.5 overflow-hidden select-none">
         <div className="animate-ticker-loop flex gap-16 font-mono text-[11px] uppercase tracking-[0.15em] text-white/50">
-          {/* Double elements to form a seamless infinite loop scrolling effect */}
-          {[1, 2].map((loopIdx) => (
+          {indices.length === 0 && (
+            <span className="whitespace-nowrap text-white/30">Loading index levels…</span>
+          )}
+          {/* Rendered twice so the loop scrolls seamlessly */}
+          {indices.length > 0 && [1, 2].map((loopIdx) => (
             <React.Fragment key={loopIdx}>
-              <span className="flex items-center gap-3.5 whitespace-nowrap">
-                <span className="font-bold text-[#F2F2F2] font-serif italic normal-case">Nifty 50</span>
-                <span className="text-white/80">22,453.30</span>
-                <span className="text-[#D4AF37] font-semibold flex items-center gap-1">
-                  +1.20% <TrendingUp className="w-3 h-3" />
-                </span>
-              </span>
-              <span className="flex items-center gap-3.5 whitespace-nowrap">
-                <span className="font-bold text-[#F2F2F2] font-serif italic normal-case">S&P 500</span>
-                <span className="text-white/80">5,147.21</span>
-                <span className="text-red-400 font-semibold flex items-center gap-1">
-                  -0.40% <TrendingDown className="w-3 h-3" />
-                </span>
-              </span>
-              <span className="flex items-center gap-3.5 whitespace-nowrap">
-                <span className="font-bold text-[#F2F2F2] font-serif italic normal-case">Nasdaq 100</span>
-                <span className="text-white/80">18,120.45</span>
-                <span className="text-[#D4AF37] font-semibold flex items-center gap-1">
-                  +0.85% <TrendingUp className="w-3 h-3" />
-                </span>
-              </span>
-              <span className="flex items-center gap-3.5 whitespace-nowrap">
-                <span className="font-bold text-[#F2F2F2] font-serif italic normal-case">Gold Spot</span>
-                <span className="text-white/80">$2,165.40</span>
-                <span className="text-[#D4AF37] font-semibold flex items-center gap-1">
-                  +0.80% <TrendingUp className="w-3 h-3" />
-                </span>
-              </span>
-              <span className="flex items-center gap-3.5 whitespace-nowrap">
-                <span className="font-bold text-[#F2F2F2] font-serif italic normal-case">BTC/USD</span>
-                <span className="text-white/80">$68,432.10</span>
-                <span className="text-[#D4AF37] font-semibold flex items-center gap-1">
-                  +3.50% <TrendingUp className="w-3 h-3" />
-                </span>
-              </span>
-              <span className="flex items-center gap-3.5 whitespace-nowrap">
-                <span className="font-bold text-[#F2F2F2] font-serif italic normal-case">Nifty Bank</span>
-                <span className="text-white/80">47,321.50</span>
-                <span className="text-[#D4AF37] font-semibold flex items-center gap-1">
-                  +0.90% <TrendingUp className="w-3 h-3" />
-                </span>
-              </span>
-              <span className="flex items-center gap-3.5 whitespace-nowrap">
-                <span className="font-bold text-[#F2F2F2] font-serif italic normal-case">Crude Oil</span>
-                <span className="text-white/80">$81.24</span>
-                <span className="text-[#D4AF37] font-semibold flex items-center gap-1">
-                  +1.50% <TrendingUp className="w-3 h-3" />
-                </span>
-              </span>
+              {indices.map((idx) => {
+                const up = (idx.changePct ?? 0) >= 0;
+                return (
+                  <span key={idx.symbol} className="flex items-center gap-3.5 whitespace-nowrap">
+                    <span className="font-bold text-[#F2F2F2] font-serif italic normal-case">{idx.label}</span>
+                    {idx.live && idx.price !== null && idx.changePct !== null ? (
+                      <>
+                        <span className="text-white/80">{idx.currency}{formatLevel(idx.price)}</span>
+                        <span className={`${up ? "text-[#D4AF37]" : "text-red-400"} font-semibold flex items-center gap-1`}>
+                          {up ? "+" : ""}{idx.changePct.toFixed(2)}% {up ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-white/30">unavailable</span>
+                    )}
+                  </span>
+                );
+              })}
             </React.Fragment>
           ))}
         </div>
@@ -278,65 +279,101 @@ export default function DashboardTab({ tickers, onSelectTicker }: DashboardTabPr
       {/* SECTION 2 & 3: DETAILS BENTO MATRIX */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* S&P 500 Market Sentiment (Bento 1 - Greed Gauge) */}
-        <div className="lg:col-span-4 bg-[#050505] border border-white/10 p-6 rounded-2xl flex flex-col justify-between items-center relative overflow-hidden bg-gradient-to-b from-white/[0.03] to-transparent">
+        {/* Market Sentiment (Bento 1 - Lumina Fear & Greed gauge) */}
+        <div className="lg:col-span-4 bg-[#050505] border border-white/10 p-6 rounded-2xl flex flex-col items-center relative overflow-hidden bg-gradient-to-b from-white/[0.03] to-transparent">
           <div className="absolute top-0 left-0 w-full h-[1px] bg-[#D4AF37]" />
-          
+
           <div className="w-full flex items-center justify-between mb-4">
-            <span className="font-mono text-[9px] text-[#D4AF37] tracking-[0.25em] font-bold">QUANT INDICATORS</span>
-            <span className="text-[10px] uppercase tracking-wider text-white/40">Fear & Greed</span>
+            <span className="font-mono text-[9px] text-[#D4AF37] tracking-[0.25em] font-bold">FEAR &amp; GREED</span>
+            <div className="flex gap-1 font-mono text-[9px] tracking-wider" role="group" aria-label="Market">
+              {(["US", "IN"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setFngMarket(m)}
+                  aria-pressed={fngMarket === m}
+                  className={`px-2 py-1 rounded border transition-colors ${
+                    fngMarket === m ? "border-[#D4AF37] text-[#D4AF37]" : "border-white/10 text-white/40 hover:text-white/70"
+                  }`}
+                >
+                  {m === "US" ? "US" : "INDIA"}
+                </button>
+              ))}
+            </div>
           </div>
 
           <h3 className="font-serif text-lg font-light text-[#F2F2F2] tracking-wide">Market Sentiment</h3>
 
-          {/* Semi-circle dial representation */}
-          <div className="relative w-48 h-24 mt-6 overflow-hidden">
-            {/* The circular color boundaries */}
-            <div className="absolute top-0 left-0 w-48 h-48 rounded-full border-[14px] border-white/5 box-border" />
-            
-            {/* Value fill representing dynamic Greed */}
-            <svg className="absolute top-0 left-0 w-48 h-48" viewBox="0 0 100 100">
-              <path 
-                d="M 10 50 A 40 40 0 1 1 90 50" 
-                fill="none" 
-                stroke="rgba(255,255,255,0.03)" 
-                strokeWidth="8" 
-              />
-              <path 
-                d="M 10 50 A 40 40 0 1 1 90 50" 
-                fill="none" 
-                stroke="url(#sentimentGrad)" 
-                strokeWidth="8" 
-                strokeDasharray="125" 
-                strokeDashoffset={125 - (125 * fearGreed.value) / 100}
-              />
-              <defs>
-                <linearGradient id="sentimentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#ef4444" />
-                  <stop offset="60%" stopColor="#D4AF37" />
-                  <stop offset="100%" stopColor="#F5E6CA" />
-                </linearGradient>
-              </defs>
-            </svg>
+          {/* Semi-circle dial. The needle rotates around the dial centre (50, 50) inside the same SVG. */}
+          <svg className="w-48 mt-6" viewBox="0 0 100 56" aria-hidden="true">
+            <defs>
+              <linearGradient id="sentimentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#ef4444" />
+                <stop offset="60%" stopColor="#D4AF37" />
+                <stop offset="100%" stopColor="#F5E6CA" />
+              </linearGradient>
+            </defs>
+            <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8" />
+            {fearGreed?.value != null && (
+              <>
+                <path
+                  d="M 10 50 A 40 40 0 0 1 90 50"
+                  fill="none"
+                  stroke="url(#sentimentGrad)"
+                  strokeWidth="8"
+                  pathLength={100}
+                  strokeDasharray="100"
+                  strokeDashoffset={100 - fearGreed.value}
+                  style={{ transition: "stroke-dashoffset 1s ease" }}
+                />
+                <g transform={`rotate(${(fearGreed.value / 100) * 180 - 90} 50 50)`} style={{ transition: "transform 1s ease" }}>
+                  <line x1="50" y1="50" x2="50" y2="17" stroke="#D4AF37" strokeWidth="2.2" strokeLinecap="round" />
+                </g>
+              </>
+            )}
+            <circle cx="50" cy="50" r="3.5" fill="#000" stroke="#D4AF37" strokeWidth="1.5" />
+          </svg>
 
-            {/* Needle */}
-            <div 
-              className="absolute bottom-0 left-11/12 w-1 h-15 bg-[#D4AF37] rounded-full transform origin-bottom -translate-x-1/2 transition-transform duration-1000"
-              style={{ transform: `rotate(${(fearGreed.value / 100) * 180 - 90}deg)` }}
-            />
-            {/* Pin */}
-            <div className="absolute bottom-0 left-1/2 w-3 h-3 bg-black rounded-full transform -translate-x-1/2 translate-y-1/2 border-2 border-[#D4AF37]" />
+          <div className="text-center mt-3">
+            <span className="text-4xl font-serif font-light text-[#D4AF37] block tracking-tight">
+              {fngLoading ? "…" : fearGreed?.value ?? "—"}
+            </span>
+            <span className="font-mono text-[9px] text-[#D4AF37] tracking-[0.25em] font-bold uppercase mt-1 inline-block">
+              {fngLoading ? "Loading" : fearGreed?.label ?? "Unavailable"}
+            </span>
           </div>
 
-          <div className="text-center mt-4">
-            <span className="text-4xl font-serif font-light text-[#D4AF37] block tracking-tight">{fearGreed.value}</span>
-            <span className="font-mono text-[9px] text-[#D4AF37] tracking-[0.25em] font-bold uppercase mt-1 inline-block">{fearGreed.classification}</span>
-          </div>
+          {!fngLoading && fearGreed && fearGreed.components.length > 0 && (
+            <ul className="w-full mt-4 flex flex-col gap-1.5">
+              {fearGreed.components.map((c) => (
+                <li key={c.key} title={c.detail} className="flex items-center gap-2 text-[10px] text-white/55">
+                  <span className="w-28 shrink-0 truncate">{c.label}</span>
+                  <span className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
+                    <span className="block h-full bg-[#D4AF37]/70" style={{ width: `${c.score}%` }} />
+                  </span>
+                  <span className="w-6 text-right font-mono text-white/70">{c.score}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {!fngLoading && fearGreed?.value == null && (
+            <p className="text-[11px] text-white/45 text-center mt-3">Not enough market data loaded to compute the index right now.</p>
+          )}
 
-          <p className="text-[11px] text-white/50 text-center mt-4 pt-4 border-t border-white/5 w-full leading-relaxed font-light">
-            {macroInfo 
-              ? `Real-world economic data (FRED): Fed Rates: ${macroInfo.interestRate.value}${macroInfo.interestRate.unit} | YoY CPI: ${macroInfo.inflationRate.value}${macroInfo.inflationRate.unit} | GDP Change: ${macroInfo.gdpGrowth.value}${macroInfo.gdpGrowth.unit} | Unrate: ${macroInfo.unemployment.value}${macroInfo.unemployment.unit}.`
-              : "Technical indices indicate high institutional momentum. Standard deviations point to steady continuation of current trends."}
+          <p className="text-[10px] text-white/40 text-center mt-4 pt-3 border-t border-white/5 w-full leading-relaxed font-light">
+            Lumina index from {fearGreed?.components.length ?? 0} market inputs, each ranked against its last 252 sessions.
+            {fearGreed?.crypto && (
+              <> Crypto F&amp;G (alternative.me): {fearGreed.crypto.value}, {fearGreed.crypto.classification}.</>
+            )}
+          </p>
+
+          <p className="text-[10.5px] text-white/50 text-center mt-3 w-full leading-relaxed font-light">
+            {macro?.available
+              ? macro.indicators
+                  .filter((i) => i.value !== null)
+                  .map((i) => `${i.label}: ${i.value}${i.unit}${i.date ? ` (${i.date.slice(0, 7)})` : ""}`)
+                  .join(" · ") + " · Source: FRED"
+              : macro?.reason ?? "Macro data unavailable."}
           </p>
         </div>
 
@@ -363,7 +400,7 @@ export default function DashboardTab({ tickers, onSelectTicker }: DashboardTabPr
                       <span className="text-[10px] text-white/40 max-w-[150px] truncate block leading-none mt-1">{t.name}</span>
                     </div>
                     <div className="text-right">
-                      <span className="font-mono text-xs text-[#F2F2F2]/90 block">{t.price.toFixed(2)}</span>
+                      <span className="font-mono text-xs text-[#F2F2F2]/90 block">{t.currency}{t.price.toFixed(2)}</span>
                       <span className={`inline-flex items-center gap-0.5 font-mono text-[10px] rounded-sm px-1.5 py-0.2 mt-1 ${
                         isBull ? "text-green-400 bg-green-500/10" : "text-red-400 bg-red-500/10"
                       }`}>
@@ -381,29 +418,31 @@ export default function DashboardTab({ tickers, onSelectTicker }: DashboardTabPr
           </div>
         </div>
 
-        {/* Active Alpha Live Signals (Bento 3) */}
+        {/* Indicator signals (Bento 3) */}
         <div className="lg:col-span-4 bg-[#050505] border border-white/10 p-6 rounded-2xl flex flex-col justify-between relative overflow-hidden bg-gradient-to-b from-white/[0.03] to-transparent">
           <div>
             <div className="flex justify-between items-center mb-4">
               <span className="font-mono text-[9px] text-[#D4AF37] tracking-[0.25em] font-bold">ALERTS RADAR</span>
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-              </span>
+              <span className="text-[10px] uppercase tracking-wider text-white/40">From daily closes</span>
             </div>
-            <h3 className="font-serif text-lg font-light text-[#F2F2F2] tracking-wide mb-6">Live AI Alpha Signals</h3>
-            
+            <h3 className="font-serif text-lg font-light text-[#F2F2F2] tracking-wide mb-6">Indicator Signals</h3>
+
             <div className="flex flex-col gap-4 overflow-y-auto max-h-[290px] pr-1">
-              {newsSignals.map((sig) => (
-                <div 
-                  key={sig.id} 
-                  className="bg-black/60 border border-white/15 p-3.5 rounded-xl hover:border-white/30 transition-colors duration-200"
+              {signals.length === 0 && (
+                <p className="text-[11.5px] text-white/45 font-light">No RSI, MACD or volume signals across the tracked stocks right now.</p>
+              )}
+              {signals.map((sig) => (
+                <button
+                  type="button"
+                  key={sig.id}
+                  onClick={() => onSelectTicker(sig.tickerId)}
+                  className="text-left bg-black/60 border border-white/15 p-3.5 rounded-xl hover:border-white/30 transition-colors duration-200"
                 >
                   <div className="flex justify-between items-center mb-1.5">
-                    <span className="font-mono text-[10px] text-white/40">{sig.time}</span>
+                    <span className="font-mono text-[10px] text-white/40">{sig.tickerId}</span>
                     <span className={`text-[9px] uppercase tracking-wider font-mono px-2 py-0.2 rounded font-bold ${
-                      sig.type === "BULLISH" 
-                        ? "bg-green-500/10 text-green-400" 
+                      sig.type === "BULLISH"
+                        ? "bg-green-500/10 text-green-400"
                         : sig.type === "BEARISH"
                         ? "bg-red-500/10 text-red-400"
                         : "bg-white/10 text-[#F2F2F2]"
@@ -411,16 +450,14 @@ export default function DashboardTab({ tickers, onSelectTicker }: DashboardTabPr
                       {sig.type}
                     </span>
                   </div>
-                  <p className="text-[11.5px] text-white/80 leading-relaxed font-light">
-                    {sig.text}
-                  </p>
-                </div>
+                  <p className="text-[11.5px] text-white/80 leading-relaxed font-light">{sig.text}</p>
+                </button>
               ))}
             </div>
           </div>
 
           <div className="mt-5 pt-3 border-t border-white/5">
-            <span className="text-[10px] text-white/40 block text-center font-light">Quant feeds refresh continuously on current microstructures.</span>
+            <span className="text-[10px] text-white/40 block text-center font-light">Signals are indicator readings, not trade advice.</span>
           </div>
         </div>
 

@@ -1,17 +1,28 @@
+/** Where a ticker's price came from. "mock" means sample data, never live. */
+export type DataSource = "finnhub" | "yahoo" | "mock";
+
 export interface Ticker {
   id: string;
   name: string;
   price: number;
   chg: number;
   volSurge: number;
-  pe: number;
+  /** null when no fundamentals source covers this stock (e.g. NSE on free tiers). */
+  pe: number | null;
   mktCap: string;
-  mktCapValue: number;
+  mktCapValue: number | null;
   rsi: number;
-  roe: number;
+  roe: number | null;
   sector: string;
   beta: number;
   macdCross: boolean;
+  market: "US" | "IN";
+  currency: string;
+  source: DataSource;
+  /** true when the price is not a real-time quote. */
+  delayed: boolean;
+  fundamentalsSource: "fmp" | "sample" | "none";
+  asOf: string;
 }
 
 export interface HistoryPoint {

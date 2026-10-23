@@ -105,17 +105,19 @@ export default function ScreenerTab({ tickers, onSelectTicker, onAlertMessage }:
       // P/E Ratio filter min
       if (peMin) {
         const minVal = parseFloat(peMin);
-        if (!isNaN(minVal) && t.pe < minVal) return false;
+        if (!isNaN(minVal) && (t.pe === null || t.pe < minVal)) return false;
       }
 
       // P/E Ratio filter max
       if (peMax) {
         const maxVal = parseFloat(peMax);
-        if (!isNaN(maxVal) && t.pe > maxVal) return false;
+        if (!isNaN(maxVal) && (t.pe === null || t.pe > maxVal)) return false;
       }
 
       // Market Cap filter
       if (marketCap !== "any") {
+        // Cap bands are in USD; stocks without a known cap are excluded.
+        if (t.mktCapValue === null) return false;
         if (marketCap === "mega") {
           // Mega cap is > 200B ($200,000,000,000)
           if (t.mktCapValue < 200000000000) return false;
@@ -130,7 +132,7 @@ export default function ScreenerTab({ tickers, onSelectTicker, onAlertMessage }:
 
       // ROE minimum filter
       if (roeMin > 0) {
-        if (t.roe < roeMin) return false;
+        if (t.roe === null || t.roe < roeMin) return false;
       }
 
       // RSI (14) Minimum filter
@@ -164,6 +166,11 @@ export default function ScreenerTab({ tickers, onSelectTicker, onAlertMessage }:
     return [...filteredTickers].sort((a, b) => {
       let valA = a[sortField];
       let valB = b[sortField];
+
+      // Missing values (e.g. P/E for NSE stocks) always sort last.
+      if (valA === null || valB === null) {
+        return valA === valB ? 0 : valA === null ? 1 : -1;
+      }
 
       if (typeof valA === 'string' && typeof valB === 'string') {
         return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
@@ -483,12 +490,21 @@ export default function ScreenerTab({ tickers, onSelectTicker, onAlertMessage }:
                           className="py-3.5 px-5 font-serif font-light text-sm text-[#D4AF37] hover:underline"
                         >
                           {t.id}
+                          {t.market === "IN" && (
+                            <span className="ml-2 align-middle font-mono text-[8px] tracking-wider text-white/40 border border-white/15 rounded px-1 py-px">NSE</span>
+                          )}
+                          {t.source === "mock" && (
+                            <span title="Live data unavailable; showing sample values" className="ml-1 align-middle font-mono text-[8px] tracking-wider text-red-300 border border-red-400/30 rounded px-1 py-px">SAMPLE</span>
+                          )}
                         </td>
                         <td 
                           onClick={() => onSelectTicker(t.id)}
                           className="py-3.5 px-5 text-white/80"
                         >
-                          {t.price.toFixed(2)}
+                          {t.currency}{t.price.toFixed(2)}
+                          {t.delayed && t.source !== "mock" && (
+                            <span title="Delayed quote (Yahoo Finance)" className="ml-1.5 font-mono text-[8px] text-white/30">DLY</span>
+                          )}
                         </td>
                         <td 
                           onClick={() => onSelectTicker(t.id)}
@@ -501,7 +517,10 @@ export default function ScreenerTab({ tickers, onSelectTicker, onAlertMessage }:
                           </span>
                         </td>
                         <td className="py-3.5 px-5 text-white/50">{t.volSurge.toFixed(1)}x</td>
-                        <td className="py-3.5 px-5 text-white/70">{t.pe.toFixed(1)}</td>
+                        <td className="py-3.5 px-5 text-white/70" title={t.fundamentalsSource === "sample" ? "Sample fundamentals; add FINANCIAL_MODELING_API for live values" : undefined}>
+                          {t.pe === null ? "—" : t.pe.toFixed(1)}
+                          {t.fundamentalsSource === "sample" && t.pe !== null && <span className="text-white/30">*</span>}
+                        </td>
                         <td className="py-3.5 px-5 text-white/70">{t.mktCap}</td>
                         <td className="py-3.5 px-5">
                           <span className={`${t.rsi >= 70 ? "text-[#D4AF37]" : t.rsi <= 35 ? "text-cyan-400" : "text-white/60"}`}>

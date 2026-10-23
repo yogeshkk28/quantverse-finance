@@ -166,8 +166,8 @@ export default function PortfolioTab({ tickers, portfolio, onSelectTicker, onCle
           <div className="h-[210px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={growthCurve} margin={{ top: 10, right: 10, left: -25, bottom: 5 }}>
-                <XAxis dataKey="date" stroke="rgba(255,255,255,0.08)" fontSize={9} fontClassName="font-mono" hide />
-                <YAxis stroke="rgba(255,255,255,0.15)" fontSize={9} fontClassName="font-mono" domain={["auto", "auto"]} />
+                <XAxis dataKey="date" stroke="rgba(255,255,255,0.08)" fontSize={9} hide />
+                <YAxis stroke="rgba(255,255,255,0.15)" fontSize={9} domain={["auto", "auto"]} />
                 <Tooltip 
                   contentStyle={{ backgroundColor: "#050505", borderColor: "rgba(255,255,255,0.15)", borderRadius: "8px" }}
                   labelStyle={{ color: "#888", fontSize: "10px", fontFamily: "monospace" }}

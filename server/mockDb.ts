@@ -1,7 +1,11 @@
-import { Ticker } from "../src/types";
+// Sample values used only when no live source answers. Anything built from
+// these is flagged source: "mock" (prices) or fundamentalsSource: "sample".
+export interface SampleTicker {
+  id: string; name: string; price: number; chg: number; volSurge: number; pe: number;
+  mktCap: string; mktCapValue: number; rsi: number; roe: number; sector: string; beta: number; macdCross: boolean;
+}
 
-// Static high-fidelity quantitative mock ticker database matching front-end schemas
-export const tickers: Ticker[] = [
+export const sampleTickers: SampleTicker[] = [
   { id: "NVDA", name: "NVIDIA Corporation", price: 875.28, chg: 2.45, volSurge: 1.8, pe: 74.2, mktCap: "2.18T", mktCapValue: 2180000000000, rsi: 72.4, roe: 38.5, sector: "Technology", beta: 1.62, macdCross: true },
   { id: "AMD", name: "Advanced Micro Devices", price: 164.50, chg: -1.20, volSurge: 0.9, pe: 315.8, mktCap: "265B", mktCapValue: 265000000000, rsi: 48.2, roe: 1.2, sector: "Technology", beta: 1.45, macdCross: false },
   { id: "PLTR", name: "Palantir Technologies", price: 24.18, chg: 5.80, volSurge: 2.4, pe: 68.5, mktCap: "53.4B", mktCapValue: 53400000000, rsi: 61.0, roe: 8.7, sector: "Technology", beta: 1.15, macdCross: true },

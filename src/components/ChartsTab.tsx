@@ -44,7 +44,7 @@ export default function ChartsTab({ tickers, activeTickerId, onSelectTicker, onA
   // Retrieve current active ticker config
   const activeTicker = useMemo(() => {
     if (!Array.isArray(tickers) || tickers.length === 0) {
-      return { id: "NVDA", name: "NVIDIA Corporation", price: 875.28, chg: 2.45, volSurge: 1.8, pe: 74.2, mktCap: "2.18T", mktCapValue: 2180000000000, rsi: 72.4, roe: 38.5, sector: "Technology", beta: 1.62, macdCross: true };
+      return { id: "NVDA", name: "NVIDIA Corporation", price: 875.28, chg: 2.45, volSurge: 1.8, pe: 74.2, mktCap: "2.18T", mktCapValue: 2180000000000, rsi: 72.4, roe: 38.5, sector: "Technology", beta: 1.62, macdCross: true, market: "US", currency: "$", source: "mock", delayed: true, fundamentalsSource: "sample", asOf: "" } as Ticker;
     }
     return tickers.find((t) => t.id === activeTickerId.toUpperCase()) || tickers[0];
   }, [tickers, activeTickerId]);
@@ -212,12 +212,15 @@ export default function ChartsTab({ tickers, activeTickerId, onSelectTicker, onA
             {/* Live Price index */}
             <div className="text-right">
               <span className="text-3xl font-light font-sans text-[#F2F2F2] block tracking-tight">
-                ${activeTicker.price.toFixed(2)}
+                {activeTicker.currency}{activeTicker.price.toFixed(2)}
               </span>
               <span className={`inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider rounded-sm px-2 py-0.5 mt-1 ${
                 activeTicker.chg >= 0 ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"
               }`}>
                 {activeTicker.chg >= 0 ? "▲" : "▼"} {activeTicker.chg.toFixed(2)}%
+              </span>
+              <span className="block font-mono text-[9px] tracking-wider text-white/35 mt-1 uppercase">
+                {activeTicker.source === "finnhub" ? "Live · Finnhub" : activeTicker.source === "yahoo" ? "Delayed · Yahoo" : "Sample data"}
               </span>
             </div>
 
@@ -229,7 +232,7 @@ export default function ChartsTab({ tickers, activeTickerId, onSelectTicker, onA
               </div>
               <div className="flex flex-col">
                 <span className="tracking-[0.12em] text-white/40 uppercase font-bold">P/E Ratio</span>
-                <span className="text-white/80 mt-1 font-semibold">{activeTicker.pe.toFixed(1)}</span>
+                <span className="text-white/80 mt-1 font-semibold">{activeTicker.pe === null ? "—" : activeTicker.pe.toFixed(1)}</span>
               </div>
               <div className="flex flex-col">
                 <span className="tracking-[0.12em] text-white/40 uppercase font-bold">RSI (14)</span>
@@ -323,7 +326,7 @@ export default function ChartsTab({ tickers, activeTickerId, onSelectTicker, onA
                         className="font-mono text-[8px] font-bold" 
                         textAnchor="end"
                       >
-                        ${priceLabel.toFixed(1)}
+                        {activeTicker.currency}{priceLabel.toFixed(1)}
                       </text>
                     </g>
                   );
@@ -355,7 +358,7 @@ export default function ChartsTab({ tickers, activeTickerId, onSelectTicker, onA
                 {ichimokuActive && (
                   <path
                     d={`M ${history.map((h, i) => `${priceSvgContent.getX(i)},${priceSvgContent.getY(h.close * 1.008)}`).join(" L ")} 
-                        L ${history.reverse().map((h, i) => `${priceSvgContent.getX(29 - i)},${priceSvgContent.getY(h.close * 0.992)}`).join(" L ")} Z`}
+                        L ${[...history].reverse().map((h, i) => `${priceSvgContent.getX(history.length - 1 - i)},${priceSvgContent.getY(h.close * 0.992)}`).join(" L ")} Z`}
                     fill="rgba(212,175,55,0.03)"
                     stroke="none"
                   />
@@ -668,11 +671,11 @@ export default function ChartsTab({ tickers, activeTickerId, onSelectTicker, onA
               </div>
               <div className="flex justify-between py-2 border-b border-white/5">
                 <span className="text-white/40">ROE %</span>
-                <span className="text-[#F2F2F2] font-semibold">{activeTicker.roe}%</span>
+                <span className="text-[#F2F2F2] font-semibold">{activeTicker.roe === null ? "—" : `${activeTicker.roe}%`}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-white/5">
                 <span className="text-white/40">P/E (TTM)</span>
-                <span className="text-[#F2F2F2] font-semibold">{activeTicker.pe}</span>
+                <span className="text-[#F2F2F2] font-semibold">{activeTicker.pe ?? "—"}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-white/5">
                 <span className="text-white/40">Volume Surge</span>

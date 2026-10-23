@@ -1,147 +1,220 @@
 import { Ticker } from "../src/types";
-import { tickers as mockTickers, generateHistoricalData, mockNews } from "./mockDb";
+import { sampleTickers, generateHistoricalData, mockNews } from "./mockDb";
 import { config } from "./config";
+import { UNIVERSE, BENCHMARK, CURRENCY, UniverseEntry, findEntry } from "./universe";
+import {
+  cached,
+  getYahooChart,
+  mapLimit,
+  rsiSeries,
+  emaSeries,
+  sma,
+  dailyReturns,
+  beta as betaOf,
+  round,
+} from "./marketData";
 
 /**
  * =========================================================================
- * REAL-WORLD REST API CLIENT SERVICES WITH DEGRADATION FALLBACKS
+ * REAL-WORLD REST API CLIENTS
  * =========================================================================
- * 
- * Provides high-fidelity real data feeds when credentials are set,
- * and maintains continuous system integrity via high-fidelity mock loops when silent.
+ *
+ * Every value returned here says where it came from. When a live source fails
+ * we fall back to sample data, but the result is flagged (source: "mock" or
+ * fundamentalsSource: "sample") so the UI can label it instead of passing it off as live.
  */
 
 // -------------------------------------------------------------------------
-// 1. Live Quotes: Finnhub API (FINNHUB_API)
+// 1. Live US quotes: Finnhub API (FINNHUB_API)
 // -------------------------------------------------------------------------
 
 /**
- * Fetch latest ticker quotes using Finnhub API.
  * GET https://finnhub.io/api/v1/quote?symbol={symbol}&token={apiKey}
+ * Free tier covers US stocks only. Cached for 30 seconds.
  */
-export async function fetchFinnhubQuote(symbol: string, apiKey: string): Promise<Partial<Ticker> | null> {
-  try {
-    const url = `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${apiKey}`;
-    const response = await fetch(url);
+export function fetchFinnhubQuote(symbol: string, apiKey: string): Promise<{ price: number; chg: number } | null> {
+  return cached(`finnhub:${symbol}`, 30_000, async () => {
+    const response = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${apiKey}`);
     if (!response.ok) {
       console.warn(`[Finnhub API] Non-OK status: ${response.status} for ${symbol}`);
       return null;
     }
     const data = await response.json();
     if (data && typeof data.c === "number" && data.c !== 0) {
-      return {
-        price: data.c,
-        chg: data.dp !== null && data.dp !== undefined ? parseFloat(data.dp.toFixed(2)) : 0,
-      };
+      return { price: data.c, chg: typeof data.dp === "number" ? round(data.dp) : 0 };
     }
-  } catch (err) {
+    return null;
+  }).catch((err) => {
     console.error(`[Finnhub API] Exception requesting quote for ${symbol}:`, err);
-  }
-  return null;
-}
-
-// -------------------------------------------------------------------------
-// 2. Company Fundamentals: Financial Modeling Prep (FINANCIAL_MODELING_API)
-// -------------------------------------------------------------------------
-
-/**
- * Fetch key company metrics from Financial Modeling Prep if available.
- * GET https://financialmodelingprep.com/api/v3/profile/{symbol}?apikey={apiKey}
- */
-export async function fetchFmpProfile(symbol: string, apiKey: string): Promise<Partial<Ticker> | null> {
-  try {
-    const url = `https://financialmodelingprep.com/api/v3/profile/${symbol}?apikey=${apiKey}`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      console.warn(`[FMP API] Non-200 status: ${response.status} for ${symbol}`);
-      return null;
-    }
-    const data = await response.json();
-    if (Array.isArray(data) && data[0]) {
-      const p = data[0];
-      return {
-        pe: p.pe ? parseFloat(parseFloat(p.pe).toFixed(2)) : undefined,
-        roe: p.roe ? parseFloat((parseFloat(p.roe) * 100).toFixed(2)) : undefined,
-        sector: p.sector || undefined,
-        name: p.companyName || undefined,
-      };
-    }
-  } catch (err) {
-    console.error(`[FMP API] Exception requesting fundamentals for ${symbol}:`, err);
-  }
-  return null;
-}
-
-// -------------------------------------------------------------------------
-// 3. Main Stocks Query Aggregation
-// -------------------------------------------------------------------------
-
-/**
- * Normalizes stocks queries. Merges base qualitative structures (mockDb)
- * with real time prices (Finnhub API) and corporate fundamentals (Financial Modeling Prep).
- */
-export async function getLiveTickersList(): Promise<Ticker[]> {
-  const finnhubKey = config.finnhub.apiKey;
-  const fmpKey = config.financialModeling.apiKey;
-
-  if (!finnhubKey && !fmpKey) {
-    console.log("[Stocks Service] Serving client assets via standard offline mock quantitative database.");
-    return mockTickers;
-  }
-
-  console.log(
-    `[Stocks Service] Compiling asset list with live API adapters: Finnhub [${finnhubKey ? "Active" : "Mock Pool"}], FMP [${fmpKey ? "Active" : "Mock Pool"}]`
-  );
-
-  // Update a slice of primary indices dynamically so as to avoid performance degradation
-  const listToPoll = mockTickers.slice(0, 10);
-  const remainder = mockTickers.slice(10);
-
-  const pollPromises = listToPoll.map(async (ticker) => {
-    let priceUpdate: Partial<Ticker> | null = null;
-    let funUpdate: Partial<Ticker> | null = null;
-
-    if (finnhubKey) {
-      priceUpdate = await fetchFinnhubQuote(ticker.id, finnhubKey);
-    }
-    if (fmpKey) {
-      funUpdate = await fetchFmpProfile(ticker.id, fmpKey);
-    }
-
-    const merged = { ...ticker };
-
-    if (priceUpdate && typeof priceUpdate.price === "number") {
-      merged.price = parseFloat(priceUpdate.price.toFixed(2));
-      merged.chg = priceUpdate.chg !== undefined ? priceUpdate.chg : ticker.chg;
-    }
-    if (funUpdate) {
-      if (funUpdate.pe !== undefined) merged.pe = funUpdate.pe;
-      if (funUpdate.roe !== undefined) merged.roe = funUpdate.roe;
-      if (funUpdate.sector !== undefined) merged.sector = funUpdate.sector;
-      if (funUpdate.name !== undefined) merged.name = funUpdate.name;
-    }
-
-    // Recalculate derivative coordinates dynamically
-    if (priceUpdate && typeof priceUpdate.price === "number") {
-      const factorObj = priceUpdate.price / ticker.price;
-      if (merged.mktCapValue) {
-        merged.mktCapValue = Math.round(merged.mktCapValue * factorObj);
-        merged.mktCap = merged.mktCapValue >= 1e12 
-          ? `${(merged.mktCapValue / 1e12).toFixed(2)}T` 
-          : `${(merged.mktCapValue / 1e9).toFixed(1)}B`;
-      }
-    }
-
-    return merged;
+    return null;
   });
+}
 
-  try {
-    const updated = await Promise.all(pollPromises);
-    return [...updated, ...remainder];
-  } catch (err) {
-    console.error("[Stocks Service] Failed polling real-world APIs, falling back to mock database:", err);
-    return mockTickers;
+// -------------------------------------------------------------------------
+// 2. Company fundamentals: Financial Modeling Prep (FINANCIAL_MODELING_API)
+// -------------------------------------------------------------------------
+
+interface Fundamentals {
+  pe: number | null;
+  roe: number | null;
+  mktCapValue: number | null;
+  sector?: string;
+  name?: string;
+}
+
+async function fmpGet(path: string, symbol: string, apiKey: string): Promise<any | null> {
+  const response = await fetch(`https://financialmodelingprep.com/stable/${path}?symbol=${symbol}&apikey=${apiKey}`);
+  if (!response.ok) {
+    console.warn(`[FMP API] ${response.status} on ${path} for ${symbol}`);
+    return null;
   }
+  const data = await response.json();
+  return Array.isArray(data) ? data[0] ?? null : null;
+}
+
+const num = (v: unknown): number | null => (typeof v === "number" && isFinite(v) ? v : null);
+
+/**
+ * FMP "stable" endpoints (the old /api/v3 paths are legacy and refused for newer keys).
+ * The free plan allows 250 calls a day and covers US exchanges only, so results are
+ * cached for 12 hours: 16 US tickers x 3 calls x 2 refreshes ≈ 96 calls a day.
+ */
+export function fetchFmpFundamentals(symbol: string, apiKey: string): Promise<Fundamentals | null> {
+  return cached(`fmp:${symbol}`, 12 * 3600_000, async () => {
+    const [profile, ratios, metrics] = await Promise.all([
+      fmpGet("profile", symbol, apiKey),
+      fmpGet("ratios-ttm", symbol, apiKey),
+      fmpGet("key-metrics-ttm", symbol, apiKey),
+    ]);
+    if (!profile && !ratios && !metrics) return null;
+    const roe = num(metrics?.returnOnEquityTTM) ?? num(ratios?.returnOnEquityTTM);
+    return {
+      pe: num(ratios?.priceToEarningsRatioTTM) ?? num(ratios?.peRatioTTM),
+      roe: roe === null ? null : round(roe * 100, 1),
+      mktCapValue: num(profile?.marketCap) ?? num(profile?.mktCap),
+      sector: profile?.sector || undefined,
+      name: profile?.companyName || undefined,
+    };
+  }).catch((err) => {
+    console.error(`[FMP API] Exception requesting fundamentals for ${symbol}:`, err);
+    return null;
+  });
+}
+
+// -------------------------------------------------------------------------
+// 3. Stocks list built from the universe
+// -------------------------------------------------------------------------
+
+export function formatMktCap(value: number | null, currency: string): string {
+  if (value === null) return "—";
+  if (value >= 1e12) return `${currency}${(value / 1e12).toFixed(2)}T`;
+  if (value >= 1e9) return `${currency}${(value / 1e9).toFixed(1)}B`;
+  return `${currency}${(value / 1e6).toFixed(0)}M`;
+}
+
+async function buildTicker(entry: UniverseEntry, benchmarkReturns: number[] | null): Promise<Ticker | null> {
+  const chart = await getYahooChart(entry.symbol, "2y");
+  const sample = sampleTickers.find((t) => t.id === entry.id);
+  const currency = CURRENCY[entry.market];
+
+  // Indicators from real daily closes when Yahoo answers, otherwise sample values.
+  let price: number, chg: number, rsi: number, macdCross: boolean, volSurge: number, beta: number;
+  let source: Ticker["source"];
+  let asOf: string;
+
+  if (chart && chart.candles.length >= 30) {
+    const closes = chart.candles.map((c) => c.close);
+    const volumes = chart.candles.map((c) => c.volume);
+    const ema26 = emaSeries(closes, 26);
+    const macd = emaSeries(closes, 12).map((v, i) => v - ema26[i]);
+    const signal = emaSeries(macd, 9);
+    const n = closes.length - 1;
+    const avgVol = sma(volumes, 20, n - 1);
+
+    price = chart.price;
+    chg = round(((chart.price - chart.previousClose) / chart.previousClose) * 100);
+    rsi = round(rsiSeries(closes).at(-1) ?? 50, 1);
+    // Bullish cross within the last 5 sessions
+    macdCross = Array.from({ length: 5 }, (_, k) => n - k).some(
+      (i) => i > 0 && macd[i] > signal[i] && macd[i - 1] <= signal[i - 1]
+    );
+    volSurge = avgVol ? round(volumes[n] / avgVol, 2) : 1;
+    beta = round((benchmarkReturns && betaOf(dailyReturns(closes), benchmarkReturns)) ?? sample?.beta ?? 1, 2);
+    source = "yahoo";
+    asOf = chart.asOf;
+  } else if (sample) {
+    ({ price, chg, rsi, macdCross, volSurge, beta } = sample);
+    source = "mock";
+    asOf = new Date().toISOString();
+  } else {
+    return null; // no live data and no sample: leave it out rather than invent numbers
+  }
+
+  // Real-time US price from Finnhub overrides Yahoo's quote when a key is set.
+  if (entry.market === "US" && config.finnhub.apiKey) {
+    const quote = await fetchFinnhubQuote(entry.symbol, config.finnhub.apiKey);
+    if (quote) {
+      price = quote.price;
+      chg = quote.chg;
+      source = "finnhub";
+      asOf = new Date().toISOString();
+    }
+  }
+
+  // Fundamentals: FMP for US when keyed; otherwise sample values, clearly flagged.
+  let fundamentals: Fundamentals | null = null;
+  let fundamentalsSource: Ticker["fundamentalsSource"] = "none";
+  if (entry.market === "US" && config.financialModeling.apiKey) {
+    fundamentals = await fetchFmpFundamentals(entry.symbol, config.financialModeling.apiKey);
+    if (fundamentals) fundamentalsSource = "fmp";
+  }
+  if (!fundamentals && sample) {
+    fundamentals = {
+      pe: sample.pe,
+      roe: sample.roe,
+      // Sample caps are in USD; only rescale them for US listings.
+      mktCapValue: entry.market === "US" ? Math.round(sample.mktCapValue * (price / sample.price)) : null,
+    };
+    fundamentalsSource = "sample";
+  }
+
+  return {
+    id: entry.id,
+    name: fundamentals?.name || entry.name,
+    sector: fundamentals?.sector || entry.sector,
+    price: round(price),
+    chg,
+    volSurge,
+    rsi,
+    beta,
+    macdCross,
+    pe: fundamentals?.pe != null ? round(fundamentals.pe, 1) : null,
+    roe: fundamentals?.roe ?? null,
+    mktCapValue: fundamentals?.mktCapValue ?? null,
+    mktCap: formatMktCap(fundamentals?.mktCapValue ?? null, currency),
+    market: entry.market,
+    currency,
+    source,
+    delayed: source !== "finnhub",
+    fundamentalsSource,
+    asOf,
+  };
+}
+
+/** All tickers in the universe. Cached for 60 seconds. */
+export function getLiveTickersList(): Promise<Ticker[]> {
+  return cached("tickers", 60_000, async () => {
+    const benchmarks: Record<string, number[] | null> = {};
+    for (const market of ["US", "IN"] as const) {
+      const chart = await getYahooChart(BENCHMARK[market], "2y");
+      benchmarks[market] = chart ? dailyReturns(chart.candles.map((c) => c.close)) : null;
+    }
+    const list = await mapLimit(UNIVERSE, 4, (entry) => buildTicker(entry, benchmarks[entry.market]));
+    const tickers = list.filter((t): t is Ticker => t !== null);
+    const counts = tickers.reduce<Record<string, number>>((acc, t) => ((acc[t.source] = (acc[t.source] || 0) + 1), acc), {});
+    console.log(`[Stocks Service] ${tickers.length} tickers built. Sources: ${JSON.stringify(counts)}`);
+    return tickers;
+  });
 }
 
 // -------------------------------------------------------------------------
@@ -180,102 +253,62 @@ export async function getAlphaVantageHistory(symbol: string, apiKey: string): Pr
   return null;
 }
 
-/**
- * Normalizes live historical technical indicator graphs over real or mock candlesticks.
- */
-const YF_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  'Accept': 'application/json',
-  'Accept-Language': 'en-US,en;q=0.9',
-};
+// -------------------------------------------------------------------------
+// 4b. History used by the charts: Yahoo first, Alpha Vantage second, sample last
+// -------------------------------------------------------------------------
 
-// Real RSI computation from actual close prices
-function computeRSI(closes: number[], period = 14): number {
-  if (closes.length < period + 1) return 50;
-  const changes = closes.slice(1).map((c, i) => c - closes[i]);
-  const gains = changes.map(c => (c > 0 ? c : 0));
-  const losses = changes.map(c => (c < 0 ? -c : 0));
-  const avgGain = gains.slice(-period).reduce((a, b) => a + b, 0) / period;
-  const avgLoss = losses.slice(-period).reduce((a, b) => a + b, 0) / period;
-  if (avgLoss === 0) return 100;
-  return parseFloat((100 - 100 / (1 + avgGain / avgLoss)).toFixed(1));
+export interface HistoryResult {
+  history: any[];
+  source: "yahoo" | "alphavantage" | "mock";
 }
 
-// Real EMA computation
-function computeEMA(values: number[], period: number): number[] {
-  const k = 2 / (period + 1);
-  const ema = [values[0]];
-  for (let i = 1; i < values.length; i++) {
-    ema.push(values[i] * k + ema[i - 1] * (1 - k));
-  }
-  return ema;
-}
+export async function getLiveHistory(idOrSymbol: string): Promise<HistoryResult> {
+  const entry = findEntry(idOrSymbol);
+  const symbol = entry?.symbol || idOrSymbol.toUpperCase();
 
-// Yahoo Finance historical OHLCV — split-adjusted, free, no key needed
-async function getYahooHistory(symbol: string): Promise<any[] | null> {
-  try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=3mo`;
-    const response = await fetch(url, { headers: YF_HEADERS });
-    if (!response.ok) {
-      console.warn(`[Yahoo History] Non-OK ${response.status} for ${symbol}`);
-      return null;
-    }
-    const data: any = await response.json();
-    const result = data.chart?.result?.[0];
-    if (!result) return null;
-
-    const timestamps: number[] = result.timestamp || [];
-    const quote = result.indicators.quote[0];
-
-    return timestamps
-      .map((ts, i) => ({
-        date: new Date(ts * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        open:   parseFloat((quote.open[i]   || 0).toFixed(2)),
-        high:   parseFloat((quote.high[i]   || 0).toFixed(2)),
-        low:    parseFloat((quote.low[i]    || 0).toFixed(2)),
-        close:  parseFloat((quote.close[i]  || 0).toFixed(2)),
-        volume: quote.volume[i] || 0,
+  let source: HistoryResult["source"] = "yahoo";
+  const chart = await getYahooChart(symbol, "3mo");
+  let rawCandles: any[] | null = chart
+    ? chart.candles.map((c) => ({
+        date: new Date(c.time * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        open: round(c.open),
+        high: round(c.high),
+        low: round(c.low),
+        close: round(c.close),
+        volume: c.volume,
       }))
-      .filter(d => d.open > 0 && d.close > 0);
-  } catch (err) {
-    console.error(`[Yahoo History] Exception for ${symbol}:`, err);
-    return null;
-  }
-}
-export async function getLiveHistory(symbol: string): Promise<any[]> {
-  // Step 1: Try Yahoo Finance (split-adjusted, most reliable)
-  let rawCandles = await getYahooHistory(symbol);
+    : null;
 
-  // Step 2: Fallback to Alpha Vantage if Yahoo fails
+  // Alpha Vantage only knows US symbols on the free plan.
+  if ((!rawCandles || rawCandles.length === 0) && config.alphaVantage.apiKey && entry?.market !== "IN") {
+    console.log(`[History] Yahoo failed, trying AlphaVantage for ${symbol}`);
+    rawCandles = await getAlphaVantageHistory(symbol, config.alphaVantage.apiKey);
+    source = "alphavantage";
+  }
+
   if (!rawCandles || rawCandles.length === 0) {
-    const apiKey = config.alphaVantage.apiKey;
-    if (apiKey) {
-      console.log(`[History] Yahoo failed, trying AlphaVantage for ${symbol}`);
-      rawCandles = await getAlphaVantageHistory(symbol, apiKey);
-    }
+    console.log(`[History] All APIs failed for ${symbol}, using sample data`);
+    const base = sampleTickers.find((t) => t.id === entry?.id) || sampleTickers[0];
+    return { history: generateHistoricalData(base.price, symbol.charCodeAt(0) || 42), source: "mock" };
   }
 
-  // Step 3: Final fallback to mock data
-  if (!rawCandles || rawCandles.length === 0) {
-    console.log(`[History] All APIs failed for ${symbol}, using mock data`);
-    const baseStock = mockTickers.find(t => t.id === symbol.toUpperCase()) || mockTickers[0];
-    return generateHistoricalData(baseStock.price, symbol.charCodeAt(0) || 42);
-  }
-
-  // Compute REAL RSI and MACD from actual close prices (not Math.sin!)
-  const closes = rawCandles.map(c => c.close);
-  const ema12 = computeEMA(closes, 12);
-  const ema26 = computeEMA(closes, 26);
+  const closes = rawCandles.map((c) => c.close);
+  const rsi = rsiSeries(closes);
+  const ema12 = emaSeries(closes, 12);
+  const ema26 = emaSeries(closes, 26);
   const macdLine = ema12.map((v, i) => v - ema26[i]);
-  const signalLine = computeEMA(macdLine, 9);
+  const signalLine = emaSeries(macdLine, 9);
 
-  return rawCandles.map((candle, idx) => ({
-    ...candle,
-    rsi:       idx >= 14 ? computeRSI(closes.slice(0, idx + 1)) : 50,
-    macd:      parseFloat((macdLine[idx]   || 0).toFixed(2)),
-    signal:    parseFloat((signalLine[idx] || 0).toFixed(2)),
-    histogram: parseFloat(((macdLine[idx] || 0) - (signalLine[idx] || 0)).toFixed(2)),
-  }));
+  return {
+    source,
+    history: rawCandles.map((candle, idx) => ({
+      ...candle,
+      rsi: rsi[idx] === null ? 50 : round(rsi[idx]!, 1),
+      macd: round(macdLine[idx] || 0),
+      signal: round(signalLine[idx] || 0),
+      histogram: round((macdLine[idx] || 0) - (signalLine[idx] || 0)),
+    })),
+  };
 }
 
 // -------------------------------------------------------------------------
@@ -335,17 +368,20 @@ export async function getLiveNewsFeed(): Promise<any[]> {
   return mockNews;
 }
 
+
 // -------------------------------------------------------------------------
-// 6. Macroeconomic Indicators Feed: FRED API (FRED_API)
+// 6. Macroeconomic indicators: FRED API (FRED_API)
 // -------------------------------------------------------------------------
 
 /**
- * Fetch macroeconomic indicators using Federal Reserve Economic Data (FRED).
- * Default series of interest: GDPC1 (Real GDP), CPIAUCSL (CPI/Inflation), FEDFUNDS (Interest rate), UNRATE (Unemployment)
+ * GET https://api.stlouisfed.org/fred/series/observations
+ * `units=pc1` asks FRED for the percent change from a year ago, which is what
+ * the dashboard labels CPI and GDP as. Without it FRED returns raw index levels
+ * (CPI ≈ 320, real GDP ≈ 23,000 billion dollars).
  */
-export async function fetchFredSeries(seriesId: string, apiKey: string): Promise<any[] | null> {
+export async function fetchFredSeries(seriesId: string, apiKey: string, units = "lin", limit = 5): Promise<any[] | null> {
   try {
-    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${apiKey}&file_type=json&limit=5&sort_order=desc`;
+    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${apiKey}&file_type=json&units=${units}&limit=${limit}&sort_order=desc`;
     const response = await fetch(url);
     if (!response.ok) {
       console.warn(`[FRED API] Non-200 status: ${response.status} for series ${seriesId}`);
@@ -353,7 +389,8 @@ export async function fetchFredSeries(seriesId: string, apiKey: string): Promise
     }
     const data = await response.json();
     if (data && Array.isArray(data.observations)) {
-      return data.observations;
+      // FRED marks missing observations with "."
+      return data.observations.filter((o: any) => o.value !== ".");
     }
   } catch (err) {
     console.error(`[FRED API] Exception reading series ${seriesId}:`, err);
@@ -361,170 +398,110 @@ export async function fetchFredSeries(seriesId: string, apiKey: string): Promise
   return null;
 }
 
-/**
- * Composite macro indicators endpoint handler helper
- */
-export async function getMacroIndicators(): Promise<any> {
+export interface MacroIndicator {
+  series: string;
+  label: string;
+  value: number | null;
+  date: string | null;
+  unit: string;
+}
+
+export interface MacroResponse {
+  available: boolean;
+  reason?: string;
+  indicators: MacroIndicator[];
+}
+
+const MACRO_SERIES = [
+  { id: "FEDFUNDS", label: "Fed funds rate", units: "lin", unit: "%" },
+  { id: "CPIAUCSL", label: "CPI inflation", units: "pc1", unit: "% YoY" },
+  { id: "GDPC1", label: "Real GDP growth", units: "pc1", unit: "% YoY" },
+  { id: "UNRATE", label: "Unemployment", units: "lin", unit: "%" },
+];
+
+/** Cached for 6 hours; these series update monthly or quarterly. */
+export function getMacroIndicators(): Promise<MacroResponse> {
   const key = config.fred.apiKey;
   if (!key) {
-    console.log("[FRED Service] Using mock macroeconomic indicators (no FRED_API key provided)");
-    return {
-      interestRate: { series: "FEDFUNDS", value: 5.33, date: "Latest", unit: "%" },
-      inflationRate: { series: "CPIAUCSL", value: 3.4, date: "Latest", unit: "% YoY" },
-      gdpGrowth: { series: "GDPC1", value: 2.1, date: "Latest", unit: "%" },
-      unemployment: { series: "UNRATE", value: 3.9, date: "Latest", unit: "%" }
-    };
+    return Promise.resolve({ available: false, reason: "Add FRED_API to .env to load macro data.", indicators: [] });
   }
-
-  try {
-    console.log("[FRED Service] Querying macroeconomic indicators using Real FRED API adapter");
-    const [fedfunds, inflation, gdp, unrate] = await Promise.all([
-      fetchFredSeries("FEDFUNDS", key),
-      fetchFredSeries("CPIAUCSL", key),
-      fetchFredSeries("GDPC1", key),
-      fetchFredSeries("UNRATE", key),
-    ]);
-
-    const getValue = (obs: any[] | null, def: number): number => {
-      if (obs && obs[0] && obs[0].value) {
-        const val = parseFloat(obs[0].value);
-        return isNaN(val) ? def : val;
-      }
-      return def;
-    };
-
-    return {
-      interestRate: { series: "FEDFUNDS", value: getValue(fedfunds, 5.33), date: fedfunds?.[0]?.date || "Latest", unit: "%" },
-      inflationRate: { series: "CPIAUCSL", value: getValue(inflation, 3.4), date: inflation?.[0]?.date || "Latest", unit: "% YoY" },
-      gdpGrowth: { series: "GDPC1", value: getValue(gdp, 2.1), date: gdp?.[0]?.date || "Latest", unit: "%" },
-      unemployment: { series: "UNRATE", value: getValue(unrate, 3.9), date: unrate?.[0]?.date || "Latest", unit: "%" }
-    };
-  } catch (err) {
-    console.error("[FRED Service] Exception compiling indices:", err);
-    return {
-      interestRate: { series: "FEDFUNDS", value: 5.33, date: "Fallback", unit: "%" },
-      inflationRate: { series: "CPIAUCSL", value: 3.4, date: "Fallback", unit: "% YoY" },
-      gdpGrowth: { series: "GDPC1", value: 2.1, date: "Fallback", unit: "%" },
-      unemployment: { series: "UNRATE", value: 3.9, date: "Fallback", unit: "%" }
-    };
-  }
+  return cached("fred:macro", 6 * 3600_000, async () => {
+    const results = await Promise.all(MACRO_SERIES.map((s) => fetchFredSeries(s.id, key, s.units)));
+    const indicators = MACRO_SERIES.map((s, i) => {
+      const obs = results[i]?.[0];
+      const value = obs ? parseFloat(obs.value) : NaN;
+      return {
+        series: s.id,
+        label: s.label,
+        value: isNaN(value) ? null : round(value, 2),
+        date: obs?.date ?? null,
+        unit: s.unit,
+      };
+    });
+    const available = indicators.some((x) => x.value !== null);
+    return { available, reason: available ? undefined : "FRED did not return data.", indicators };
+  });
 }
 
 // -------------------------------------------------------------------------
-// 7. Fear and Greed Index: Alternative.me API (ALTERNATE.ME_API)
+// 7. Crypto Fear & Greed: Alternative.me
 // -------------------------------------------------------------------------
 
 /**
- * Fetch current Fear and Greed Index dynamically from alternative.me.
+ * This is the crypto (Bitcoin) sentiment index, not a stock-market one.
+ * The stock index lives in fearGreed.ts. Returns null on failure.
  */
-export async function getFearAndGreedIndex(): Promise<{ value: number; classification: string }> {
-  try {
-    console.log("[Alternative.me API] Triggering live call to fetch Fear & Greed index");
+export function getCryptoFearGreed(): Promise<{ value: number; classification: string } | null> {
+  return cached("fng:crypto", 30 * 60_000, async () => {
     const response = await fetch("https://api.alternative.me/fng/?limit=1");
-    if (response.ok) {
-      const data = await response.json();
-      if (data && data.data && data.data[0]) {
-        const metric = data.data[0];
-        return {
-          value: parseInt(metric.value) || 72,
-          classification: (metric.value_classification || "Greed").toUpperCase(),
-        };
-      }
-    }
-  } catch (err) {
+    if (!response.ok) return null;
+    const metric = (await response.json())?.data?.[0];
+    const value = parseInt(metric?.value);
+    return isNaN(value) ? null : { value, classification: metric.value_classification || "" };
+  }).catch((err) => {
     console.error("[Alternative.me API] Failed calling index:", err);
-  }
-  // Safe default
-  return { value: 72, classification: "GREED" };
+    return null;
+  });
 }
+
+// -------------------------------------------------------------------------
+// 8. Global index strip
+// -------------------------------------------------------------------------
+
 export interface GlobalIndex {
   symbol: string;
   label: string;
-  price: number;
-  change: number;
-  changePct: number;
+  price: number | null;
+  change: number | null;
+  changePct: number | null;
   currency: string;
+  live: boolean;
 }
-// Agar config.coinGecko nahi hai toh ye use karo:
-const apiKey = process.env.COINGECKO_API || '';
-// REPLACE your entire getLiveGlobalIndices function with this
 
+const GLOBAL_INDICES = [
+  { symbol: "^NSEI", label: "Nifty 50", currency: "₹" },
+  { symbol: "^NSEBANK", label: "Nifty Bank", currency: "₹" },
+  { symbol: "^GSPC", label: "S&P 500", currency: "$" },
+  { symbol: "^NDX", label: "Nasdaq 100", currency: "$" },
+  { symbol: "GC=F", label: "Gold", currency: "$" },
+  { symbol: "CL=F", label: "Crude WTI", currency: "$" },
+  { symbol: "BTC-USD", label: "BTC/USD", currency: "$" },
+];
+
+/** Index levels from Yahoo. Entries that fail come back with live: false and null values. */
 export async function getLiveGlobalIndices(): Promise<GlobalIndex[]> {
-  const fallback: GlobalIndex[] = [
-    { symbol: '^NSEI',   label: 'Nifty 50',   price: 24500, change: 120,   changePct: 0.49,  currency: '₹' },
-    { symbol: '^GSPC',   label: 'S&P 500',    price: 5450,  change: -12,   changePct: -0.22, currency: '$' },
-    { symbol: '^NDX',    label: 'Nasdaq 100', price: 19200, change: 85,    changePct: 0.44,  currency: '$' },
-    { symbol: 'GC=F',    label: 'Gold Spot',  price: 2330,  change: 8,     changePct: 0.34,  currency: '$' },
-    { symbol: 'CL=F',    label: 'Crude WTI',  price: 78,    change: -0.5,  changePct: -0.64, currency: '$' },
-    { symbol: 'BTC-USD', label: 'BTC/USD',    price: 67000, change: 1200,  changePct: 1.82,  currency: '$' },
-  ];
-
-  // ── Helper: Yahoo Finance v8/chart (works without auth, unlike v7/quote) ──
-  async function fetchYahooV8(rawSymbol: string): Promise<{ price: number; change: number; changePct: number } | null> {
-    try {
-      // URL-encode special chars: ^ → %5E, = → %3D
-      const encoded = encodeURIComponent(rawSymbol);
-      const url = `https://query2.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=2d`;
-      const response = await fetch(url, { headers: YF_HEADERS });
-      if (!response.ok) {
-        console.warn(`[Yahoo v8] ${response.status} for ${rawSymbol}`);
-        return null;
-      }
-      const data: any = await response.json();
-      const meta = data.chart?.result?.[0]?.meta;
-      if (!meta?.regularMarketPrice) return null;
-
-      const price      = parseFloat((meta.regularMarketPrice).toFixed(2));
-      const prevClose  = meta.chartPreviousClose || meta.previousClose || price;
-      const change     = parseFloat((price - prevClose).toFixed(2));
-      const changePct  = parseFloat(((change / prevClose) * 100).toFixed(2));
-      return { price, change, changePct };
-    } catch (err) {
-      console.error(`[Yahoo v8] Exception for ${rawSymbol}:`, err);
-      return null;
-    }
-  }
-
-  // ── Helper: CoinGecko for BTC (reliable, they have the key) ──
-  async function fetchBTCCoinGecko(): Promise<{ price: number; change: number; changePct: number } | null> {
-    try {
-      const apiKey = process.env.COINGECKO_API || "";
-      const headers: Record<string, string> = { ...YF_HEADERS };
-      if (apiKey) headers['x-cg-demo-api-key'] = apiKey;
-
-      const url = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true';
-      const response = await fetch(url, { headers });
-      if (!response.ok) return null;
-
-      const data: any = await response.json();
-      const btc = data.bitcoin;
-      if (!btc?.usd) return null;
-
-      const price     = parseFloat((btc.usd).toFixed(2));
-      const changePct = parseFloat((btc.usd_24h_change || 0).toFixed(2));
-      const change    = parseFloat((price * changePct / 100).toFixed(2));
-      return { price, change, changePct };
-    } catch (err) {
-      console.error('[CoinGecko] BTC fetch failed:', err);
-      return null;
-    }
-  }
-
-  // ── Fetch all in parallel ──
-  const [nifty, sp500, nasdaq, gold, crude, btc] = await Promise.all([
-    fetchYahooV8('^NSEI'),
-    fetchYahooV8('^GSPC'),
-    fetchYahooV8('^NDX'),
-    fetchYahooV8('GC=F'),
-    fetchYahooV8('CL=F'),
-    fetchBTCCoinGecko(),
-  ]);
-
-  const results = [nifty, sp500, nasdaq, gold, crude, btc];
-
-  return fallback.map((fb, i) => {
-    const live = results[i];
-    if (!live) return fb; // use fallback for failed calls
-    return { ...fb, price: live.price, change: live.change, changePct: live.changePct };
-  });
+  return Promise.all(
+    GLOBAL_INDICES.map(async (idx) => {
+      const chart = await getYahooChart(idx.symbol, "5d");
+      if (!chart) return { ...idx, price: null, change: null, changePct: null, live: false };
+      const change = chart.price - chart.previousClose;
+      return {
+        ...idx,
+        price: round(chart.price),
+        change: round(change),
+        changePct: round((change / chart.previousClose) * 100),
+        live: true,
+      };
+    })
+  );
 }
