@@ -8,7 +8,7 @@
  */
 import { config } from "./config";
 import { UNIVERSE, BENCHMARK, Market } from "./universe";
-import { cached, getYahooChart, Chart, mapLimit, sma, percentileOfLast, round } from "./marketData";
+import { cached, expire, getYahooChart, Chart, mapLimit, sma, percentileOfLast, round } from "./marketData";
 import { fetchFredSeries } from "./apiClients";
 
 export interface FearGreedComponent {
@@ -28,6 +28,11 @@ export interface FearGreedResult {
 }
 
 const MIN_COMPONENTS = 3;
+
+// Shorten the cache life of an incomplete result so missing inputs are fetched again soon.
+function retryLater(key: string) {
+  expire(key, 60_000);
+}
 
 type Dated = Map<string, number>;
 
@@ -147,6 +152,16 @@ async function compute(market: Market): Promise<FearGreedResult> {
     }
   }
 
+  const missing = [
+    !bench && BENCHMARK[market], !vol && cfg.volatility, !risk && cfg.risk, !haven && cfg.haven,
+  ].filter(Boolean);
+  if (missing.length || memberCharts.length < members.length) {
+    console.warn(
+      `[Fear & Greed ${market}] Missing inputs: ${missing.join(", ") || "none"}; ` +
+        `member histories ${memberCharts.length}/${members.length}`
+    );
+  }
+
   const value =
     components.length >= MIN_COMPONENTS
       ? Math.round(components.reduce((sum, c) => sum + c.score, 0) / components.length)
@@ -162,7 +177,11 @@ async function compute(market: Market): Promise<FearGreedResult> {
   };
 }
 
-/** Cached for 15 minutes per market. */
-export function getFearGreed(market: Market): Promise<FearGreedResult> {
-  return cached(`fng:${market}`, 15 * 60_000, () => compute(market));
+/** Cached for 15 minutes per market; an incomplete result is retried after a minute. */
+export async function getFearGreed(market: Market): Promise<FearGreedResult> {
+  const result = await cached(`fng:${market}`, 15 * 60_000, () => compute(market));
+  if (result.value === null || result.components.length < 6 - (market === "IN" ? 1 : 0)) {
+    retryLater(`fng:${market}`);
+  }
+  return result;
 }

@@ -20,6 +20,12 @@ export function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): P
   return value;
 }
 
+/** Make a cached entry expire within `ms` (no-op if it already expires sooner). */
+export function expire(key: string, ms: number) {
+  const hit = cacheStore.get(key);
+  if (hit) hit.expires = Math.min(hit.expires, Date.now() + ms);
+}
+
 // -------------------------------------------------------------------------
 // Yahoo Finance v8 chart endpoint
 // -------------------------------------------------------------------------
@@ -49,49 +55,85 @@ export interface Chart {
   asOf: string;
 }
 
-/** Daily candles plus the latest price. Cached for 5 minutes per symbol and range. */
-export function getYahooChart(symbol: string, range: "5d" | "3mo" | "1y" | "2y" = "1y"): Promise<Chart | null> {
-  return cached(`yahoo:${symbol}:${range}`, 5 * 60_000, async () => {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${range}`;
-    const response = await fetch(url, { headers: YF_HEADERS });
-    if (!response.ok) {
-      console.warn(`[Yahoo] ${response.status} for ${symbol}`);
-      return null;
+// Yahoo throttles bursts (HTTP 429), and the dashboard fires several endpoints at once,
+// so every Yahoo request goes through one shared queue.
+const YAHOO_CONCURRENCY = 3;
+let yahooActive = 0;
+const yahooQueue: Array<() => void> = [];
+
+async function withYahooSlot<T>(fn: () => Promise<T>): Promise<T> {
+  if (yahooActive >= YAHOO_CONCURRENCY) await new Promise<void>((resolve) => yahooQueue.push(resolve));
+  yahooActive++;
+  try {
+    return await fn();
+  } finally {
+    yahooActive--;
+    yahooQueue.shift()?.();
+  }
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function fetchYahooJson(symbol: string, range: string): Promise<any | null> {
+  const path = `/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${range}`;
+  // One retry on the second Yahoo host after a short pause handles most 429s.
+  for (const [attempt, host] of ["query1", "query2"].entries()) {
+    if (attempt > 0) await sleep(1500);
+    try {
+      const response = await withYahooSlot(() => fetch(`https://${host}.finance.yahoo.com${path}`, { headers: YF_HEADERS }));
+      if (response.ok) return await response.json();
+      console.warn(`[Yahoo] ${response.status} for ${symbol} (${range}) on ${host}`);
+    } catch (err) {
+      console.warn(`[Yahoo] Request failed for ${symbol} (${range}) on ${host}:`, err);
     }
-    const data: any = await response.json();
-    const result = data.chart?.result?.[0];
-    const quote = result?.indicators?.quote?.[0];
-    if (!result || !quote) return null;
+  }
+  return null;
+}
 
-    const timestamps: number[] = result.timestamp || [];
-    const candles = timestamps
-      .map((time, i) => ({
-        time,
-        open: quote.open[i],
-        high: quote.high[i],
-        low: quote.low[i],
-        close: quote.close[i],
-        volume: quote.volume[i] || 0,
-      }))
-      .filter((c) => c.open > 0 && c.close > 0);
-    if (candles.length === 0) return null;
+// Failed symbols are retried after 30 seconds instead of being cached as "no data" for 5 minutes.
+const yahooFailedUntil = new Map<string, number>();
 
-    const meta = result.meta || {};
-    const price = meta.regularMarketPrice || candles[candles.length - 1].close;
-    const previousClose =
-      candles.length >= 2 ? candles[candles.length - 2].close : meta.chartPreviousClose || price;
-    return {
-      symbol,
-      candles,
-      price,
-      previousClose,
-      currency: meta.currency || "USD",
-      asOf: new Date((meta.regularMarketTime || candles[candles.length - 1].time) * 1000).toISOString(),
-    };
-  }).catch((err) => {
-    console.error(`[Yahoo] Exception for ${symbol}:`, err);
+/** Daily candles plus the latest price. Cached for 5 minutes per symbol and range. */
+export async function getYahooChart(symbol: string, range: "5d" | "3mo" | "1y" | "2y" = "1y"): Promise<Chart | null> {
+  const key = `yahoo:${symbol}:${range}`;
+  if ((yahooFailedUntil.get(key) ?? 0) > Date.now()) return null;
+  try {
+    return await cached(key, 5 * 60_000, async () => {
+      const data = await fetchYahooJson(symbol, range);
+      const result = data?.chart?.result?.[0];
+      const quote = result?.indicators?.quote?.[0];
+      if (!result || !quote) throw new Error("no chart data");
+
+      const timestamps: number[] = result.timestamp || [];
+      const candles = timestamps
+        .map((time, i) => ({
+          time,
+          open: quote.open[i],
+          high: quote.high[i],
+          low: quote.low[i],
+          close: quote.close[i],
+          volume: quote.volume[i] || 0,
+        }))
+        .filter((c) => c.open > 0 && c.close > 0);
+      if (candles.length === 0) throw new Error("empty candles");
+
+      const meta = result.meta || {};
+      const price = meta.regularMarketPrice || candles[candles.length - 1].close;
+      const previousClose =
+        candles.length >= 2 ? candles[candles.length - 2].close : meta.chartPreviousClose || price;
+      return {
+        symbol,
+        candles,
+        price,
+        previousClose,
+        currency: meta.currency || "USD",
+        asOf: new Date((meta.regularMarketTime || candles[candles.length - 1].time) * 1000).toISOString(),
+      };
+    });
+  } catch {
+    yahooFailedUntil.set(key, Date.now() + 30_000);
     return null;
-  });
+  }
 }
 
 /** Run async jobs with a concurrency cap so we don't trip Yahoo's rate limiting. */
