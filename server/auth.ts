@@ -99,4 +99,16 @@ router.post("/api/auth/leave", (req: Request, res: Response) => {
   res.clearCookie(COOKIE).json({ ok: true });
 });
 
+// Deletes the signed-in user's email and every session tied to it.
+router.post("/api/auth/forget", (req: Request, res: Response) => {
+  const session = sessionFor(req);
+  if (!session) return res.status(401).json({ error: "Not signed in." });
+  delete store.users[session.email];
+  for (const [sid, s] of Object.entries(store.sessions)) {
+    if (s.email === session.email) delete store.sessions[sid];
+  }
+  save();
+  res.clearCookie(COOKIE).json({ ok: true });
+});
+
 export default router;

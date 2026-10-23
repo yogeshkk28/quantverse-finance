@@ -11,6 +11,8 @@ interface AuthState {
   loading: boolean;
   enter: (email: string) => Promise<EnterResult>;
   leave: () => Promise<void>;
+  /** Deletes the account and its sessions on the server. */
+  forget: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -49,7 +51,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
-  return <AuthContext.Provider value={{ user, loading, enter, leave }}>{children}</AuthContext.Provider>;
+  const forget = useCallback(async () => {
+    const res = await fetch("/api/auth/forget", { method: "POST" }).catch(() => null);
+    if (!res?.ok) return false;
+    setUser(null);
+    return true;
+  }, []);
+
+  return <AuthContext.Provider value={{ user, loading, enter, leave, forget }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthState {

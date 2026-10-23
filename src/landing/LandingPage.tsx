@@ -10,6 +10,7 @@ import { ribbons } from "./canvas/ribbons";
 import { asciiMosaic } from "./canvas/asciiMosaic";
 import { network } from "./canvas/network";
 import WormholeGate from "./sections/WormholeGate";
+import MarketHours from "./sections/MarketHours";
 import { useReducedMotion, heatmapTiles } from "./hooks";
 import "./landing.css";
 
@@ -20,22 +21,6 @@ const BELIEFS = [
   { href: "#connected", label: "Markets are connected" },
   { href: "#volatility", label: "Volatility is information" },
   { href: "#breadth", label: "Breadth is edge" },
-];
-
-const GLOBAL_LINES = [
-  { lang: "en", text: "Markets are global," },
-  { lang: "hi", text: "बाज़ार वैश्विक हैं," },
-  { lang: "ja", text: "市場はグローバルだ、" },
-  { lang: "ko", text: "시장은 글로벌하다," },
-  { lang: "zh", text: "市场是全球的，" },
-  { lang: "de", text: "Märkte sind global," },
-  { lang: "es", text: "Los mercados son globales," },
-];
-
-const STATS = [
-  { value: 26, label: "stocks tracked across the US and NSE" },
-  { value: 6, label: "inputs behind Fear & Greed" },
-  { value: 252, label: "sessions of history per signal" },
 ];
 
 const SLICES = 12;
@@ -52,7 +37,6 @@ export default function LandingPage() {
   const [glyph, setGlyph] = useState("L");
   const [activeBelief, setActiveBelief] = useState<string | null>(null);
   const [cueHidden, setCueHidden] = useState(false);
-  const [langIndex, setLangIndex] = useState(0);
   const tiles = useMemo(() => heatmapTiles(), []);
 
   // Smooth scrolling, driven by GSAP's ticker so ScrollTrigger stays in sync.
@@ -98,13 +82,6 @@ export default function LandingPage() {
     return () => io.disconnect();
   }, []);
 
-  // Language cycler
-  useEffect(() => {
-    if (reduced) return;
-    const id = window.setInterval(() => setLangIndex((i) => (i + 1) % GLOBAL_LINES.length), 1800);
-    return () => window.clearInterval(id);
-  }, [reduced]);
-
   useGSAP(
     () => {
       // Scroll cue fades after the first 80px
@@ -112,28 +89,6 @@ export default function LandingPage() {
         start: 0,
         end: "max",
         onUpdate: () => setCueHidden(window.scrollY > 80),
-      });
-
-      // Count-up stats (instant when motion is reduced)
-      gsap.utils.toArray<HTMLElement>(".lq-stat__value").forEach((el) => {
-        const target = Number(el.dataset.value);
-        if (reduced) {
-          el.textContent = String(target);
-          return;
-        }
-        const counter = { v: 0 };
-        ScrollTrigger.create({
-          trigger: el,
-          start: "top 90%",
-          once: true,
-          onEnter: () =>
-            gsap.to(counter, {
-              v: target,
-              duration: 1.6,
-              ease: "power2.out",
-              onUpdate: () => (el.textContent = String(Math.round(counter.v))),
-            }),
-        });
       });
 
       if (reduced) return;
@@ -210,18 +165,8 @@ export default function LandingPage() {
         scrollTrigger: { trigger: "#breadth", start: "bottom 90%", end: "bottom top", scrub: true },
       });
 
-      // Language cycler: slide each new line in
-      // (React swaps the text; this only animates it)
     },
     { scope: rootRef, dependencies: [reduced] }
-  );
-
-  useGSAP(
-    () => {
-      if (reduced) return;
-      gsap.fromTo(".lq-cycler__item", { yPercent: 60, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 0.6, ease: "expo.out" });
-    },
-    { scope: rootRef, dependencies: [langIndex, reduced] }
   );
 
   const closeMenu = () => setMenuOpen(false);
@@ -374,38 +319,7 @@ export default function LandingPage() {
 
         <WormholeGate reduced={reduced} />
 
-        {/* Global + stats */}
-        <section id="global" className="lq-section lq-global" data-section-theme="dark" data-glyph="G" aria-labelledby="global-title">
-          <h2 id="global-title" className="lq-statement" style={{ maxWidth: "26ch" }}>
-            <span className="lq-cycler" aria-live="polite">
-              <span key={langIndex} className="lq-cycler__item" lang={GLOBAL_LINES[langIndex].lang}>
-                {GLOBAL_LINES[langIndex].text}
-              </span>
-            </span>
-            <span>so is Lumina.</span>
-          </h2>
-          <div className="lq-global__row">
-            <div className="lq-stats">
-              {STATS.map((s) => (
-                <div key={s.label} className="lq-stat">
-                  <span className="lq-stat__value" data-value={s.value}>
-                    {s.value}
-                  </span>
-                  <span className="lq-stat__label">{s.label}</span>
-                </div>
-              ))}
-            </div>
-            {user ? (
-              <Link to="/app/dashboard" className="lq-btn">
-                Open the terminal <span className="lq-btn__arrow" aria-hidden="true">→</span>
-              </Link>
-            ) : (
-              <a href="#gate" className="lq-btn">
-                Get access <span className="lq-btn__arrow" aria-hidden="true">→</span>
-              </a>
-            )}
-          </div>
-        </section>
+        <MarketHours />
 
         {/* Beliefs banner */}
         <nav className="lq-beliefs" aria-label="Our core beliefs">
@@ -510,6 +424,7 @@ export default function LandingPage() {
           </div>
           <div className="lq-footer__legal">
             <span>Not investment advice. Data may be delayed.</span>
+            <Link to="/privacy">Privacy</Link>
             <span>© {new Date().getFullYear()} Lumina Quant</span>
           </div>
         </div>

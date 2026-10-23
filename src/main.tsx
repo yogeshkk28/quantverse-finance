@@ -8,6 +8,7 @@ import "./index.css";
 // Separate chunks: terminal users never download the landing animations, and vice versa.
 const LandingPage = lazy(() => import("./landing/LandingPage"));
 const App = lazy(() => import("./App"));
+const PrivacyPage = lazy(() => import("./landing/PrivacyPage"));
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -16,6 +17,7 @@ createRoot(document.getElementById("root")!).render(
         <Suspense fallback={<div className="min-h-screen bg-black" />}>
           <Routes>
             <Route path="/" element={<LandingPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
             <Route
               path="/app/:tab?"
               element={

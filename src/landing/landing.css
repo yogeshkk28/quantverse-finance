@@ -506,44 +506,125 @@
   border-color: var(--gold-pale);
 }
 
-/* ------------------------------------------------------------------ global + stats */
+/* ------------------------------------------------------------------ market hours dial */
 
-.lq-global {
-  justify-content: space-between;
-  gap: 12vh;
+.lq-hours {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  align-items: center;
+  gap: 6vw;
 }
-.lq-cycler {
-  display: block;
-  position: relative;
-  min-height: 1.1em;
+.lq-hours__title {
+  font-size: clamp(2.5rem, 5.2vw, 5.25rem);
+  max-width: 16ch;
 }
-.lq-cycler__item {
-  display: block;
-}
-.lq-global__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 40px;
-}
-.lq-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 40px 80px;
-}
-.lq-stat__value {
-  display: block;
-  font-size: clamp(2rem, 3vw, 2.75rem);
-  font-weight: 400;
-  font-variant-numeric: tabular-nums;
-}
-.lq-stat__label {
-  display: block;
-  margin-top: 6px;
-  font-size: 1rem;
+.lq-hours__next {
+  margin-top: 28px;
+  font-size: clamp(1.0625rem, 1.3vw, 1.25rem);
   font-weight: 400;
   color: var(--fg-muted);
+}
+.lq-hours__next strong {
+  color: var(--gold-pale);
+  font-weight: 500;
+}
+.lq-hours__list {
+  list-style: none;
+  padding: 0;
+  margin-top: 40px;
+  max-width: 520px;
+  border-top: 1px solid var(--line);
+}
+.lq-hours__list li {
+  display: grid;
+  grid-template-columns: 14px 64px minmax(0, 1fr) 56px 64px;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.5);
+}
+.lq-hours__list li[data-open="true"] {
+  color: var(--fg);
+}
+.lq-hours__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+}
+li[data-open="true"] .lq-hours__dot {
+  background: var(--gold);
+  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.18);
+}
+.lq-hours__code,
+.lq-hours__time,
+.lq-hours__state {
+  font: 500 0.8125rem/1 var(--mono);
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+}
+.lq-hours__state {
+  text-align: right;
+  text-transform: uppercase;
+}
+li[data-open="true"] .lq-hours__state {
+  color: var(--gold);
+}
+.lq-hours__note {
+  margin-top: 20px;
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 400;
+  max-width: 46ch;
+}
+.lq-hours__dial {
+  width: 100%;
+  max-width: 560px;
+  justify-self: center;
+  overflow: visible;
+}
+.lq-hours__track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.07);
+  stroke-width: 1;
+}
+.lq-hours__session {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.28);
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+g[data-open="true"] .lq-hours__session {
+  stroke: var(--gold);
+  filter: drop-shadow(0 0 6px rgba(212, 175, 55, 0.55));
+}
+.lq-hours__label {
+  font: 500 9px/1 var(--mono);
+  letter-spacing: 0.04em;
+  fill: rgba(255, 255, 255, 0.55);
+  paint-order: stroke;
+  stroke: #000;
+  stroke-width: 4px;
+}
+g[data-open="true"] .lq-hours__label {
+  fill: var(--gold-pale);
+}
+.lq-hours__tick {
+  font: 500 11px/1 var(--mono);
+  fill: rgba(255, 255, 255, 0.45);
+}
+.lq-hours__hand {
+  stroke: var(--gold-pale);
+  stroke-width: 1.5;
+}
+.lq-hours__pivot {
+  fill: var(--gold-pale);
+}
+.lq-hours__now {
+  font: 500 13px/1 var(--mono);
+  fill: var(--gold-pale);
 }
 
 /* ------------------------------------------------------------------ beliefs banner */
@@ -756,9 +837,68 @@
   font-weight: 400;
 }
 
+/* ------------------------------------------------------------------ legal pages */
+
+.lq-legal {
+  min-height: 100vh;
+}
+.lq-legal__body {
+  max-width: 720px;
+  padding: 160px var(--gutter) 120px;
+  margin: 0 auto;
+  font-weight: 400;
+  line-height: 1.65;
+  color: var(--fg-muted);
+}
+.lq-legal__body h1 {
+  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+}
+.lq-legal__lead {
+  margin-top: 28px;
+  font-size: 1.25rem;
+  color: var(--fg);
+}
+.lq-legal__body h2 {
+  margin-top: 56px;
+  margin-bottom: 14px;
+  font-size: 1.375rem;
+  font-weight: 500;
+  color: var(--fg);
+}
+.lq-legal__body ul {
+  padding-left: 1.2em;
+  display: grid;
+  gap: 10px;
+}
+.lq-legal__body strong {
+  color: var(--fg);
+  font-weight: 500;
+}
+.lq-legal__body code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  color: var(--gold-pale);
+}
+.lq-legal__body a {
+  color: var(--gold-pale);
+}
+.lq-legal__back {
+  margin-top: 72px;
+}
+.lq-gate__note a {
+  color: inherit;
+  text-underline-offset: 3px;
+}
+
 /* ------------------------------------------------------------------ responsive */
 
 @media (max-width: 1199px) {
+  .lq-hours { grid-template-columns: minmax(0, 1fr); }
+  .lq-hours__dial { max-width: 460px; }
   .lq-hero__line:first-child { margin-left: 18vw; }
   .lq-beliefs { grid-template-columns: repeat(4, 1fr); }
   .lq-beliefs__label { grid-column: 1 / -1; }
@@ -782,12 +922,10 @@
   .lq-beliefs__label { flex-basis: 85vw; }
   .lq-beliefs a:nth-child(2) { border-left: 1px solid rgba(0, 0, 0, 0.35); }
   .lq-light { grid-template-columns: minmax(0, 1fr); gap: 40px; }
-  .lq-global__row { flex-direction: column; align-items: stretch; }
-  .lq-global__row .lq-btn { width: 100%; }
+  .lq-hours { grid-template-columns: minmax(0, 1fr); }
+  .lq-hours__list li { grid-template-columns: 14px 56px minmax(0, 1fr) 48px 56px; gap: 8px; }
   .lq-form { flex-direction: column; }
   .lq-form .lq-btn { width: 100%; }
-  /* Longer translations wrap on phones, so keep two lines for the cycler. */
-  .lq-cycler { min-height: 2.1em; }
   /* Keep the statement readable over the glyph chart. */
   #information .lq-canvas { opacity: 0.4; }
   .lq-footer__base { grid-template-columns: minmax(0, 1fr); }

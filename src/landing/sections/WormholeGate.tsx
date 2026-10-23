@@ -1,5 +1,5 @@
 import React, { FormEvent, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
@@ -112,7 +112,9 @@ export default function WormholeGate({ reduced }: { reduced: boolean }) {
             <p id="gate-msg" className="lq-form__msg" data-kind={error ? "error" : "info"} role="status" aria-live="polite">
               {error ?? ""}
             </p>
-            <p className="lq-gate__note">Early preview. Your email is only used to let you in.</p>
+            <p className="lq-gate__note">
+              Early preview. Your email is only used to let you in. <Link to="/privacy">Privacy policy</Link>
+            </p>
           </>
         )}
       </div>

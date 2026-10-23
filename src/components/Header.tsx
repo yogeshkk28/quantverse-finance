@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ActiveTab } from "../types";
-import { Bell, User, Cpu, LogOut, TrendingUp, Filter, LineChart, PieChart, Activity } from "lucide-react";
+import { Bell, User, Cpu, LogOut, Trash2, TrendingUp, Filter, LineChart, PieChart, Activity } from "lucide-react";
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -11,7 +11,7 @@ interface HeaderProps {
 }
 
 export default function Header({ activeTab, setActiveTab, onNotificationsClick }: HeaderProps) {
-  const { user, leave } = useAuth();
+  const { user, leave, forget } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -99,6 +99,24 @@ export default function Header({ activeTab, setActiveTab, onNotificationsClick }
                 >
                   <LogOut className="w-3.5 h-3.5" /> Sign out
                 </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={async () => {
+                    if (!window.confirm("Delete your email and sign out everywhere? This can't be undone.")) return;
+                    if (await forget()) navigate("/");
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white/50 hover:bg-white/5 hover:text-red-400"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Delete my data
+                </button>
+                <Link
+                  to="/privacy"
+                  role="menuitem"
+                  className="block px-3 py-2 rounded-lg text-[11px] text-white/40 hover:bg-white/5 hover:text-white/70"
+                >
+                  Privacy policy
+                </Link>
               </div>
             )}
           </div>
