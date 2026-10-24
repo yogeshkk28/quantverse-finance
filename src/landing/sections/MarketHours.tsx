@@ -1,10 +1,20 @@
 import React, { useEffect, useState } from "react";
-import { formatWait, joinCities, marketStatus } from "../marketHours";
+import {
+  dialGroups,
+  formatWait,
+  joinCities,
+  marketStatus,
+  MarketState,
+  REGIONS,
+  ExchangeStatus,
+} from "../marketHours";
 
 const SIZE = 400;
 const C = SIZE / 2;
 const OUTER = 176;
 const STEP = 17;
+
+const STATE_LABEL: Record<MarketState, string> = { open: "Open", lunch: "Lunch", closed: "Closed" };
 
 function point(r: number, minutes: number) {
   const a = (minutes / 1440) * Math.PI * 2 - Math.PI / 2; // midnight at the top
@@ -18,9 +28,19 @@ function arc(r: number, start: number, end: number) {
   return `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${r} ${r} 0 ${span > 720 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
 }
 
+function headlineFor(status: ExchangeStatus[], now: Date): string {
+  const open = status.filter((s) => s.state === "open");
+  const cities = [...new Set(open.map((s) => s.city))];
+  if (cities.length > 3) return `Right now, ${open.length} of ${status.length} markets are trading.`;
+  if (cities.length > 0) return `Right now, ${joinCities(cities)} ${cities.length === 1 ? "is" : "are"} trading.`;
+  if (status.some((s) => s.state === "lunch")) return "Asia is at lunch.";
+  const weekend = now.getDay() === 0 || now.getDay() === 6;
+  return weekend ? "The world's markets are resting." : "Every market is between bells.";
+}
+
 /**
- * "Somewhere, a market is open": a live 24-hour dial of the major exchanges on
- * the visitor's own clock, with the hand at the current time.
+ * "Somewhere, a market is open": a live 24-hour dial of the ten largest
+ * exchanges on the visitor's own clock, plus the full top-20 list by region.
  */
 export default function MarketHours() {
   const [now, setNow] = useState(() => new Date());
@@ -31,48 +51,90 @@ export default function MarketHours() {
   }, []);
 
   const status = marketStatus(now);
-  const open = status.filter((s) => s.isOpen);
-  const next = status.filter((s) => !s.isOpen).sort((a, b) => a.opensIn - b.opensIn)[0];
-  const weekend = now.getDay() === 0 || now.getDay() === 6;
+  const groups = dialGroups(status);
+  const openCount = status.filter((s) => s.state === "open").length;
+  const next = status.filter((s) => s.state !== "open").sort((a, b) => a.opensIn - b.opensIn)[0];
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const [hx, hy] = point(OUTER + 10, nowMinutes);
-
-  const headline =
-    open.length > 0
-      ? `Right now, ${joinCities(open.map((s) => s.city))} ${open.length === 1 ? "is" : "are"} trading.`
-      : weekend
-        ? "The world's markets are resting."
-        : "Every market is between bells.";
 
   return (
     <section id="hours" className="lq-section lq-hours" data-section-theme="dark" data-glyph="H" aria-labelledby="hours-title">
       <div className="lq-hours__text">
         <p className="lq-eyebrow">Market hours, live</p>
         <h2 id="hours-title" className="lq-statement lq-hours__title">
-          {headline}
+          {headlineFor(status, now)}
         </h2>
         {next && (
           <p className="lq-hours__next">
             Next bell: <strong>{next.city}</strong> in {formatWait(next.opensIn)}
           </p>
         )}
-        <ul className="lq-hours__list">
-          {status.map((s) => (
-            <li key={s.code} data-open={s.isOpen}>
+
+        <ul className="lq-hours__list" aria-label="Ten largest exchanges">
+          {groups.map(({ label, members, lead }) => (
+            <li key={label} data-state={lead.state}>
               <span className="lq-hours__dot" aria-hidden="true" />
-              <span className="lq-hours__code">{s.code}</span>
-              <span className="lq-hours__city">{s.city}</span>
-              <span className="lq-hours__time">{s.localTime}</span>
-              <span className="lq-hours__state">{s.isOpen ? "Open" : "Closed"}</span>
+              <span className="lq-hours__market">
+                <span className="lq-hours__name">{label}</span>
+                <span className="lq-hours__codes">{members.map((m) => m.code).join(" · ")}</span>
+              </span>
+              <span className="lq-hours__clock">
+                <span className="lq-hours__time">{lead.localTime}</span>
+                <span className="lq-hours__tz">{lead.utcOffset}</span>
+              </span>
+              <span className="lq-hours__state">{STATE_LABEL[lead.state]}</span>
             </li>
           ))}
         </ul>
+
+        <details className="lq-hours__all">
+          <summary>
+            All 20 markets <span>{openCount} open now</span>
+          </summary>
+          {REGIONS.map((region) => (
+            <div key={region} className="lq-hours__region">
+              <h3>{region}</h3>
+              <ul>
+                {status
+                  .filter((s) => s.region === region)
+                  .map((s) => (
+                    <li key={s.code} data-state={s.state}>
+                      <span className="lq-hours__dot" aria-hidden="true" />
+                      <span className="lq-hours__market">
+                        <span className="lq-hours__name">{s.name}</span>
+                        <span className="lq-hours__codes">
+                          {s.city}, {s.country}
+                        </span>
+                      </span>
+                      <span className="lq-hours__clock">
+                        <span className="lq-hours__time">{s.localTime}</span>
+                        <span className="lq-hours__tz">{s.state === "open" ? s.utcOffset : `opens ${formatWait(s.opensIn)}`}</span>
+                      </span>
+                      <span className="lq-hours__badge" data-coverage={s.coverage}>
+                        {s.coverage === "covered" ? (
+                          <>
+                            Live data
+                            <br />
+                            Paper trading
+                          </>
+                        ) : (
+                          "Coming soon"
+                        )}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ))}
+        </details>
+
         <p className="lq-hours__note">
-          Lumina covers NSE and the US today. Regular hours on your clock; holidays not shown.
+          Lumina has live data for the US and NSE today, with more markets on the way. Regular hours on your clock;
+          exchange holidays not shown.
         </p>
       </div>
 
-      <svg className="lq-hours__dial" viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label="Trading sessions on a 24-hour dial in your time zone">
+      <svg className="lq-hours__dial" viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label="Trading sessions of the ten largest exchanges on a 24-hour dial in your time zone">
         {[0, 360, 720, 1080].map((m) => {
           const [x, y] = point(OUTER + 18, m);
           return (
@@ -81,14 +143,16 @@ export default function MarketHours() {
             </text>
           );
         })}
-        {status.map((s, i) => {
+        {groups.map(({ label, lead }, i) => {
           const r = OUTER - i * STEP;
           return (
-            <g key={s.code} data-open={s.isOpen}>
+            <g key={label} data-state={lead.state}>
               <circle cx={C} cy={C} r={r} className="lq-hours__track" />
-              <path d={arc(r, s.start, s.end)} className="lq-hours__session" />
+              {lead.viewerSessions.map(([a, b]) => (
+                <path key={a} d={arc(r, a, b)} className="lq-hours__session" />
+              ))}
               <text x={C - 8} y={C - r} className="lq-hours__label" textAnchor="end" dominantBaseline="middle">
-                {s.code}
+                {label}
               </text>
             </g>
           );
