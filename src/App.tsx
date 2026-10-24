@@ -18,7 +18,9 @@ export default function App() {
   const activeTab: ActiveTab = TABS.includes(tab as ActiveTab) ? (tab as ActiveTab) : "dashboard";
   const setActiveTab = (next: ActiveTab) => navigate(`/app/${next}`);
   // Arriving from the landing page keeps its scroll position, so start each view at the top.
-  useEffect(() => window.scrollTo(0, 0), [activeTab]);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [activeTab]);
   const [tickers, setTickers] = useState<Ticker[]>([]);
   const [activeTickerId, setActiveTickerId] = useState<string>("NVDA");
   
