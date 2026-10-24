@@ -56,4 +56,32 @@ export interface CorrelationLink {
   value: number;
 }
 
+/** Stock `source` tends to move one session before `target` (market-adjusted). */
+export interface CorrelationLead {
+  source: string | CorrelationNode;
+  target: string | CorrelationNode;
+  value: number;
+  reverse: number;
+  sensitivity: number;
+}
+
+export interface PeerReaction {
+  id: string;
+  sameDay: number;
+  next5: number;
+  t: number;
+  p: number;
+  significant: boolean;
+  n: number;
+}
+
+export interface EventStudy {
+  symbol: string;
+  threshold: number;
+  sessions: number;
+  events: Array<{ date: string; move: number; residual: number }>;
+  self: PeerReaction | null;
+  peers: PeerReaction[];
+}
+
 export type ActiveTab = "dashboard" | "screener" | "charts" | "portfolio" | "signals";
