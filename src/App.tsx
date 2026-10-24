@@ -214,9 +214,10 @@ export default function App() {
       {/* RENDER ACTIVE TAB */}
       <main className="flex-1 w-full flex flex-col">
         {activeTab === "dashboard" && (
-          <DashboardTab 
-            tickers={tickers} 
-            onSelectTicker={handleSelectTicker} 
+          <DashboardTab
+            tickers={tickers}
+            onSelectTicker={handleSelectTicker}
+            onOpenWeb={() => setActiveTab("signals")}
           />
         )}
 

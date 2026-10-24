@@ -9,8 +9,8 @@ import {
   getMacroIndicators
 } from "./apiClients";
 import { getFearGreed } from "./fearGreed";
-import { UNIVERSE, Market } from "./universe";
-import { getYahooChart, mapLimit, dailyReturns, correlation, round } from "./marketData";
+import { Market } from "./universe";
+import { buildWeb, eventStudy, loadPanel } from "./impact";
 
 const router = Router();
 
@@ -176,48 +176,65 @@ router.get("/api/chart/:ticker", async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/correlation-web?market=US|IN&days=30|90|250
-// Pearson correlation of daily returns over the chosen window, from real closes.
-// This is layer 1 of the planned impact engine; lead-lag and event studies come later.
+// GET /api/correlation-web?market=US|IN&days=30|90|250&mode=adjusted|raw
+// Links between stocks (raw or market-adjusted correlation of daily returns) and
+// lead-lag pairs, each kept only when it clears a multiple-testing threshold.
 router.get("/api/correlation-web", async (req: Request, res: Response) => {
   const market: Market = req.query.market === "IN" ? "IN" : "US";
   const days = [30, 90, 250].includes(Number(req.query.days)) ? Number(req.query.days) : 90;
-  const minAbs = days <= 30 ? 0.5 : 0.4; // short windows are noisier, so ask for a stronger link
+  const mode = req.query.mode === "raw" ? "raw" : "adjusted";
+  // Short windows are noisier, so ask for a stronger link; residual links run weaker than raw ones.
+  const minAbs = mode === "raw" ? (days <= 30 ? 0.5 : 0.4) : 0.3;
   try {
-    const list = (await getLiveTickersList()).filter((t) => t.market === market);
-    const members = UNIVERSE.filter((u) => list.some((t) => t.id === u.id));
-    const charts = await mapLimit(members, 4, (m) => getYahooChart(m.symbol, "2y"));
-
-    // Align on dates every member traded, then take the last `days` returns.
-    const byDate = charts.map((c) => new Map((c?.candles ?? []).map((k) => [k.time - (k.time % 86400), k.close])));
-    const common = [...(byDate[0]?.keys() ?? [])].filter((d) => byDate.every((m) => m.has(d))).sort((a, b) => a - b);
-    const window = common.slice(-(days + 1));
-    if (window.length < 20) {
-      return res.status(502).json({ error: "Not enough price history to compute correlations.", nodes: [], links: [] });
+    const panel = await loadPanel(market);
+    if (!panel) {
+      return res.status(502).json({ error: "Not enough price history to compute correlations.", nodes: [], links: [], leads: [] });
     }
-    const returns = byDate.map((m) => dailyReturns(window.map((d) => m.get(d)!)));
+    const web = buildWeb(panel, days, mode, minAbs);
+    const list = await getLiveTickersList();
+    const nodes = list
+      .filter((t) => panel.ids.includes(t.id))
+      .map((t) => ({
+        id: t.id,
+        name: t.name,
+        sector: t.sector,
+        beta: web.betas[t.id] ?? t.beta,
+        val: Math.round(10 + Math.log10(Math.max(t.mktCapValue ?? 1e10, 1e9)) * 2),
+      }));
 
-    const nodes = list.map((t) => ({
-      id: t.id,
-      name: t.name,
-      sector: t.sector,
-      beta: t.beta,
-      val: Math.round(10 + Math.log10(Math.max(t.mktCapValue ?? 1e10, 1e9)) * 2),
-    }));
-    const links: Array<{ source: string; target: string; value: number }> = [];
-    for (let i = 0; i < members.length; i++) {
-      for (let j = i + 1; j < members.length; j++) {
-        const r = correlation(returns[i], returns[j]);
-        if (r !== null && Math.abs(r) >= minAbs) {
-          links.push({ source: members[i].id, target: members[j].id, value: round(r, 2) });
-        }
-      }
-    }
-
-    res.json({ market, days, method: "pearson-daily-returns", asOf: new Date().toISOString(), nodes, links });
+    res.json({
+      market,
+      days,
+      mode,
+      sessions: web.n,
+      linkThreshold: web.linkThreshold,
+      leadThreshold: web.leadThreshold,
+      missing: panel.missing,
+      asOf: new Date().toISOString(),
+      nodes,
+      links: web.links,
+      leads: web.leads,
+    });
   } catch (err: any) {
     console.error("[API] Failed computing correlation web:", err);
-    res.status(500).json({ error: "Failed computing correlation web", nodes: [], links: [] });
+    res.status(500).json({ error: "Failed computing correlation web", nodes: [], links: [], leads: [] });
+  }
+});
+
+// GET /api/correlation-web/events?market=US|IN&symbol=NVDA
+// What every peer did on and after the symbol's largest market-adjusted moves (about two years).
+router.get("/api/correlation-web/events", async (req: Request, res: Response) => {
+  const market: Market = req.query.market === "IN" ? "IN" : "US";
+  const symbol = String(req.query.symbol || "").toUpperCase();
+  try {
+    const panel = await loadPanel(market);
+    if (!panel) return res.status(502).json({ error: "Not enough price history for an event study." });
+    const study = eventStudy(panel, symbol);
+    if (!study) return res.status(404).json({ error: `No price history for ${symbol} in this market.` });
+    res.json(study);
+  } catch (err: any) {
+    console.error(`[API] Event study failed for ${symbol}:`, err);
+    res.status(500).json({ error: "Event study failed" });
   }
 });
 

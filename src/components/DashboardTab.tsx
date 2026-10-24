@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Ticker } from "../types";
+import MiniCorrelationWeb from "./MiniCorrelationWeb";
 import { TrendingUp, TrendingDown, RefreshCw, Layers, ShieldAlert, Award, Zap } from "lucide-react";
 
 interface DashboardTabProps {
   tickers: Ticker[];
   onSelectTicker: (tickerId: string) => void;
+  onOpenWeb?: () => void;
 }
 
 interface FearGreedData {
@@ -60,7 +62,7 @@ function buildSignals(tickers: Ticker[]): Signal[] {
 
 const formatLevel = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
 
-export default function DashboardTab({ tickers, onSelectTicker }: DashboardTabProps) {
+export default function DashboardTab({ tickers, onSelectTicker, onOpenWeb }: DashboardTabProps) {
   // Quote cycling matching screenshot behaviour
   const quotes = [
     "Information is the first investment.",
@@ -463,79 +465,8 @@ export default function DashboardTab({ tickers, onSelectTicker }: DashboardTabPr
 
       </div>
 
-      {/* SECTION 4: DEEP CORRELATION GENOME MAP */}
-      <section className="bg-[#050505] border border-white/10 p-6 rounded-2xl flex flex-col gap-4 mt-2">
-        <div className="flex justify-between items-start md:items-end flex-col md:flex-row gap-4">
-          <div>
-            <h3 className="font-serif text-xl font-light text-[#F2F2F2] tracking-wide flex items-center gap-2">
-              <Layers className="w-4 h-4 text-[#D4AF37]" /> Market Genome Correlation Preview
-            </h3>
-            <p className="text-xs text-white/50 mt-1 leading-relaxed font-light">
-              Visualizes real-time quantitative relationships across the primary market indices. Shift to the <strong className="text-[#D4AF37] font-medium">Correlation Web</strong> tab to fully explore.
-            </p>
-          </div>
-          <div className="flex items-center gap-4 bg-black/50 px-4 py-2 border border-white/10 rounded-xl text-[10px] font-mono tracking-wider">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#D4AF37]" />
-              <span className="text-white/40">Positive Vector</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-              <span className="text-white/40">Negative Vector</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Beautiful genome graphic nodes linking display utilizing SVG */}
-        <div className="h-[210px] bg-black/60 border border-white/5 rounded-xl flex items-center justify-center relative overflow-hidden select-none group">
-          <svg className="w-full h-full opacity-65 group-hover:opacity-90 transition-opacity duration-700 pointer-events-none" viewBox="0 0 800 200">
-            {/* Vector connectors with gold theme variables */}
-            <line x1="120" y1="100" x2="240" y2="40" stroke="#D4AF37" strokeWidth="1.5" strokeDasharray="4 2" />
-            <line x1="240" y1="40" x2="380" y2="120" stroke="#3B82F6" strokeWidth="1" />
-            <line x1="380" y1="120" x2="520" y2="60" stroke="#D4AF37" strokeWidth="2" />
-            <line x1="520" y1="60" x2="680" y2="110" stroke="#3B82F6" strokeWidth="1.5" strokeDasharray="3 3" />
-            <line x1="240" y1="40" x2="520" y2="60" stroke="#D4AF37" strokeWidth="1" opacity="0.3" />
-            <line x1="120" y1="100" x2="380" y2="120" stroke="#D4AF37" strokeWidth="1.5" />
-            <line x1="380" y1="120" x2="680" y2="110" stroke="#3B82F6" strokeWidth="1" opacity="0.3" />
-
-            {/* Glowing orbs representing core indices with style settings from Sophisticated Dark template */}
-            <g transform="translate(120, 100)">
-              <circle r="22" fill="#050505" stroke="#D4AF37" strokeWidth="2" />
-              <circle r="3" fill="#D4AF37" />
-              <text y="34" className="font-mono text-[9px] text-white/50 tracking-widest uppercase font-bold" textAnchor="middle" fill="#F2F2F2">RELIANCE</text>
-            </g>
-
-            <g transform="translate(240, 40)">
-              <circle r="18" fill="#050505" stroke="#F5E6CA" strokeWidth="1.5" />
-              <text y="28" className="font-mono text-[9px] text-white/50 tracking-widest uppercase font-bold" textAnchor="middle" fill="#F2F2F2">AAPL</text>
-            </g>
-
-            <g transform="translate(380, 120)">
-              <circle r="25" fill="#050505" stroke="#D4AF37" strokeWidth="2.5" />
-              <circle r="4" fill="#D4AF37" />
-              <text y="37" className="font-mono text-[9px] text-white/50 tracking-widest uppercase font-bold" textAnchor="middle" fill="#F2F2F2">NVDA</text>
-            </g>
-
-            <g transform="translate(520, 60)">
-              <circle r="20" fill="#050505" stroke="#F5E6CA" strokeWidth="1.5" />
-              <text y="30" className="font-mono text-[9px] text-white/50 tracking-widest uppercase font-bold" textAnchor="middle" fill="#F2F2F2">MSFT</text>
-            </g>
-
-            <g transform="translate(680, 110)">
-              <circle r="21" fill="#050505" stroke="#3B82F6" strokeWidth="1.5" />
-              <circle r="3" fill="#3B82F6" />
-              <text y="32" className="font-mono text-[9px] text-white/50 tracking-widest uppercase font-bold" textAnchor="middle" fill="#F2F2F2">TSLA</text>
-            </g>
-          </svg>
-
-          {/* Institutional banner overlay details */}
-          <div className="absolute top-3 left-3 bg-black/85 border border-white/10 py-1.5 px-3 rounded-lg pointer-events-none select-none">
-            <span className="font-mono text-[9px] tracking-[0.1em] text-[#D4AF37] flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 bg-green-500 rounded-full inline-block animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" /> SECTOR CORRELATION MAPPING: CONSTITUENT VECTORS
-            </span>
-          </div>
-        </div>
-      </section>
+      {/* SECTION 4: LIVE CORRELATION WEB PREVIEW */}
+      <MiniCorrelationWeb onOpen={() => onOpenWeb?.()} />
 
       {/* FOOTER SPECS matching Aether footer format */}
       <footer className="mt-12 h-14 border-t border-white/10 flex items-center justify-between bg-black px-6 select-none">
