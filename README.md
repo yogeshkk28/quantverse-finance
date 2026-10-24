@@ -10,6 +10,13 @@ for US and Indian (NSE) stocks. React 19 + Vite front end served by an Express s
    on screen when a value is delayed, sample data or unavailable.
 3. `npm run dev`, then open http://localhost:3000
 
+## Landing page and sign-up
+
+`/` is the scroll-driven landing page (`src/landing/`, GSAP + Lenis, canvas visuals). The
+"Enter the Wormhole" form near the bottom takes an email and opens the terminal at `/app/dashboard`.
+This is placeholder auth (`server/auth.ts`): no password, a 30-day session cookie, and users stored in
+`server/data/auth.json` (gitignored). It gates the UI only; the `/api` data routes stay open.
+
 ## Where the data comes from
 
 | Data | Source | Notes |

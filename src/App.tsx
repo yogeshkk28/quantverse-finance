@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import Header from "./components/Header";
 import DashboardTab from "./components/DashboardTab";
 import ScreenerTab from "./components/ScreenerTab";
@@ -8,8 +9,16 @@ import CorrelationWebTab from "./components/CorrelationWebTab";
 import { Ticker, ActiveTab } from "./types";
 import { AlertCircle, Terminal, CheckCircle2, ChevronRight, X } from "lucide-react";
 
+const TABS: ActiveTab[] = ["dashboard", "screener", "charts", "portfolio", "signals"];
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
+  // The active tab lives in the URL (/app/screener, /app/charts, …) so views are linkable.
+  const { tab } = useParams();
+  const navigate = useNavigate();
+  const activeTab: ActiveTab = TABS.includes(tab as ActiveTab) ? (tab as ActiveTab) : "dashboard";
+  const setActiveTab = (next: ActiveTab) => navigate(`/app/${next}`);
+  // Arriving from the landing page keeps its scroll position, so start each view at the top.
+  useEffect(() => window.scrollTo(0, 0), [activeTab]);
   const [tickers, setTickers] = useState<Ticker[]>([]);
   const [activeTickerId, setActiveTickerId] = useState<string>("NVDA");
   

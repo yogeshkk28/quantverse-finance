@@ -2,16 +2,20 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
+import cookieParser from "cookie-parser";
 import apiRouter from "./server/routes";
+import authRouter from "./server/auth";
 import { getLiveGlobalIndices } from "./server/apiClients";
 dotenv.config();
 
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
 
 const PORT = 3000;
 
 // Register modular REST API endpoints
+app.use(authRouter);
 app.use(apiRouter);
 app.get("/api/global-indices", async (req, res) => {
   try {
