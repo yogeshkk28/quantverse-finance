@@ -1,0 +1,322 @@
+/*
+ * Event Horizon: the Lumina Quant theme kit.
+ *
+ * The single source for colour, type and the shared parts on every page
+ * (Dashboard, Screener, Charts, Portfolio, Correlation Web, landing, privacy).
+ * Change a token here and every page follows. No new colours without adding
+ * a token here first.
+ *
+ * Rules
+ * - Gold marks what you can act on. One primary gold button per view.
+ * - Violet is atmosphere only (wormhole glows, the market status pill). Never data.
+ * - Green and red only show price direction, always with an arrow or sign.
+ * - Numbers use JetBrains Mono (`lq-num` or `font-mono`) so columns line up.
+ *
+ * Use from Tailwind: `bg-lq-surface`, `text-lq-gold`, `border-lq-line`, …
+ * Use from CSS: `var(--lq-gold)`.
+ * Shared parts: .lq-panel, .lq-card, .lq-lbl, .lq-h1/.lq-h2/.lq-h3, .lq-chip,
+ * .lq-btn (+ --ghost), .lq-tag, .lq-marker, .lq-table, .lq-up/.lq-down.
+ */
+
+:root {
+  /* Space */
+  --lq-bg: #07080c;
+  --lq-bg-2: #0b0c12;
+  --lq-surface: #10121a;
+  --lq-surface-2: #161924;
+  --lq-line: #232634;
+  --lq-line-soft: #1a1d28;
+  --lq-line-2: #2f3344;
+  --lq-ph: #262a38;
+  --lq-ph-2: #363b4d;
+  /* Text */
+  --lq-text: #f3efe6;
+  --lq-text-2: #c9cbd6;
+  --lq-muted: #a3a7b7;
+  /* Brand */
+  --lq-gold: #d4af37;
+  --lq-gold-soft: #f5e6ca;
+  --lq-gold-deep: #8a7425;
+  --lq-gold-line: rgba(212, 175, 55, 0.28);
+  --lq-gold-grad: linear-gradient(135deg, #f5e6ca 0%, #d4af37 55%, #b8912a 100%);
+  --lq-violet: #8f7bff;
+  --lq-violet-glow: rgba(143, 123, 255, 0.18);
+  /* Data */
+  --lq-up: #4ade80;
+  --lq-down: #f87171;
+  /* Shape */
+  --lq-radius: 14px;
+  --lq-radius-sm: 10px;
+  --lq-shadow: inset 0 1px 0 rgba(245, 230, 202, 0.06), 0 20px 50px rgba(0, 0, 0, 0.35);
+  /* Type */
+  --lq-font-display: "Cormorant Garamond", Georgia, serif;
+  --lq-font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --lq-font-num: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  color-scheme: dark;
+}
+
+/* Tailwind utilities that read the tokens: bg-lq-bg, text-lq-muted, border-lq-gold-line, … */
+@theme inline {
+  --color-lq-bg: var(--lq-bg);
+  --color-lq-bg-2: var(--lq-bg-2);
+  --color-lq-surface: var(--lq-surface);
+  --color-lq-surface-2: var(--lq-surface-2);
+  --color-lq-line: var(--lq-line);
+  --color-lq-line-soft: var(--lq-line-soft);
+  --color-lq-line-2: var(--lq-line-2);
+  --color-lq-ph: var(--lq-ph);
+  --color-lq-text: var(--lq-text);
+  --color-lq-text-2: var(--lq-text-2);
+  --color-lq-muted: var(--lq-muted);
+  --color-lq-gold: var(--lq-gold);
+  --color-lq-gold-soft: var(--lq-gold-soft);
+  --color-lq-gold-deep: var(--lq-gold-deep);
+  --color-lq-gold-line: var(--lq-gold-line);
+  --color-lq-violet: var(--lq-violet);
+  --color-lq-up: var(--lq-up);
+  --color-lq-down: var(--lq-down);
+  --radius-lq: var(--lq-radius);
+}
+
+@layer base {
+  html,
+  body {
+    background: var(--lq-bg);
+    color: var(--lq-text);
+    font-family: var(--lq-font-body);
+  }
+  ::selection {
+    background: rgba(212, 175, 55, 0.3);
+    color: var(--lq-gold-soft);
+  }
+  :focus-visible {
+    outline: 2px solid var(--lq-gold);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Glass surface, 14px radius, gold hairline on top. */
+  .lq-panel {
+    position: relative;
+    background: linear-gradient(180deg, rgba(22, 25, 36, 0.88), rgba(14, 16, 23, 0.9));
+    border: 1px solid var(--lq-line);
+    border-radius: var(--lq-radius);
+    box-shadow: var(--lq-shadow);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  /* For items inside a panel: IPOs, coins, ideas. */
+  .lq-card {
+    background: var(--lq-surface-2);
+    border: 1px solid var(--lq-line);
+    border-radius: var(--lq-radius-sm);
+  }
+  .lq-lbl {
+    font: 500 11px/1.2 var(--lq-font-body);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--lq-muted);
+  }
+  .lq-h1 {
+    margin: 0;
+    font: 600 clamp(32px, 4vw, 44px) / 1.05 var(--lq-font-display);
+    color: var(--lq-text);
+  }
+  .lq-h1--grad {
+    background: linear-gradient(90deg, #f5e6ca, #d4af37 60%, #8f7bff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .lq-h2 {
+    margin: 0;
+    font: 600 28px/1.1 var(--lq-font-display);
+    color: var(--lq-text);
+  }
+  .lq-h3 {
+    margin: 0;
+    font: 600 20px/1.2 var(--lq-font-display);
+    color: var(--lq-text);
+  }
+  .lq-num {
+    font-family: var(--lq-font-num);
+    font-variant-numeric: tabular-nums;
+  }
+  .lq-chip {
+    font: 500 12px/1 var(--lq-font-body);
+    color: var(--lq-text-2);
+    background: var(--lq-surface-2);
+    border: 1px solid var(--lq-line-2);
+    border-radius: 999px;
+    padding: 0 14px;
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .lq-chip:hover {
+    border-color: var(--lq-gold-line);
+    color: var(--lq-text);
+  }
+  .lq-chip.is-on,
+  .lq-chip[aria-pressed="true"],
+  .lq-chip[aria-selected="true"] {
+    background: var(--lq-gold-grad);
+    color: #0a0a0a;
+    border-color: transparent;
+  }
+  .lq-btn {
+    font: 600 13px/1 var(--lq-font-body);
+    border-radius: 8px;
+    min-height: 40px;
+    padding: 0 16px;
+    cursor: pointer;
+    border: 0;
+    background: var(--lq-gold-grad);
+    color: #0a0a0a;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: filter 0.2s, border-color 0.2s;
+  }
+  .lq-btn:hover {
+    filter: brightness(1.08);
+  }
+  .lq-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .lq-btn--ghost {
+    background: transparent;
+    color: var(--lq-gold);
+    border: 1px solid var(--lq-gold-line);
+  }
+  .lq-btn--ghost:hover {
+    border-color: var(--lq-gold);
+    filter: none;
+  }
+  .lq-tag {
+    font: 500 10px/1 var(--lq-font-num);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--lq-gold);
+    border: 1px dashed var(--lq-gold-deep);
+    border-radius: 4px;
+    padding: 5px 7px;
+    white-space: nowrap;
+  }
+  /* Section marker: a gold ring with a violet halo. */
+  .lq-marker {
+    display: inline-block;
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid var(--lq-gold);
+    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.12), 0 0 12px var(--lq-violet-glow);
+  }
+  .lq-input {
+    background: var(--lq-surface-2);
+    border: 1px solid var(--lq-line-2);
+    border-radius: 8px;
+    color: var(--lq-text);
+    min-height: 36px;
+    padding: 0 12px;
+    font: 400 13px var(--lq-font-body);
+  }
+  .lq-input:focus {
+    outline: none;
+    border-color: var(--lq-gold);
+  }
+  .lq-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .lq-table th {
+    font: 500 11px/1 var(--lq-font-body);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--lq-muted);
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--lq-line);
+    white-space: nowrap;
+  }
+  .lq-table td {
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--lq-line-soft);
+    white-space: nowrap;
+  }
+  .lq-up {
+    color: var(--lq-up);
+  }
+  .lq-down {
+    color: var(--lq-down);
+  }
+}
+
+/* ---------------------------------------------------------------
+ * Background layer: faint starfield plus slow wormhole rings.
+ * Rendered once by <Cosmos /> behind every page.
+ * ------------------------------------------------------------- */
+.lq-cosmos {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background-color: var(--lq-bg);
+  background-image:
+    radial-gradient(1px 1px at 20px 30px, rgba(245, 230, 202, 0.55), transparent),
+    radial-gradient(1px 1px at 120px 90px, rgba(245, 230, 202, 0.35), transparent),
+    radial-gradient(1.5px 1.5px at 60px 140px, rgba(143, 123, 255, 0.5), transparent),
+    radial-gradient(1px 1px at 170px 40px, rgba(245, 230, 202, 0.25), transparent);
+  background-size: 151px 163px, 151px 163px, 151px 163px, 211px 197px;
+}
+.lq-cosmos__hole {
+  position: absolute;
+  aspect-ratio: 1;
+}
+.lq-cosmos__glow {
+  position: absolute;
+  inset: 22%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(143, 123, 255, 0.22), rgba(212, 175, 55, 0.05) 60%, transparent 78%);
+}
+.lq-cosmos__rings {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  animation: lq-orbit 240s linear infinite;
+}
+@keyframes lq-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Panels settle into place one after another on arrival. */
+.lq-rise {
+  animation: lq-rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(var(--lq-i, 0) * 70ms);
+}
+@keyframes lq-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lq-cosmos__rings,
+  .lq-rise {
+    animation: none;
+  }
+}

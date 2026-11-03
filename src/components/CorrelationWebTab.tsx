@@ -1,7 +1,13 @@
-import React, { useEffect, useRef, useState, useMemo } from "react";
-import * as d3 from "d3";
-import { Ticker, CorrelationNode, CorrelationLink, CorrelationLead, EventStudy } from "../types";
-import { ZoomIn, ZoomOut, Maximize2, X, Activity, RefreshCw, ArrowRight } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { RefreshCw } from "lucide-react";
+import type { Ticker } from "../types";
+import NetworkView, { DrawEdge } from "./correlation/NetworkView";
+import MatrixHeatmap from "./correlation/MatrixHeatmap";
+import SpectrumChart from "./correlation/SpectrumChart";
+import RegimePanel from "./correlation/RegimePanel";
+import NodeDetail, { GroupSwatch } from "./correlation/NodeDetail";
+import { ROLE_LABEL } from "./correlation/palette";
+import type { Basis, Dynamics, Estimator, Market, NetworkKind, Structure, WebNode } from "./correlation/types";
 
 interface CorrelationWebTabProps {
   tickers: Ticker[];
@@ -9,551 +15,498 @@ interface CorrelationWebTabProps {
   onAlertMessage?: (msg: string) => void;
 }
 
-type Lens = "adjusted" | "raw" | "leadlag";
+const NETWORKS: Array<{ id: NetworkKind; label: string; note: string }> = [
+  {
+    id: "mst",
+    label: "Backbone",
+    note: "Minimum spanning tree: the strongest chain of links that connects every stock, with no loops. Faint edges are ones that often disappear when the days are resampled.",
+  },
+  {
+    id: "tmfg",
+    label: "Filtered graph",
+    note: "TMFG: the backbone plus the tightest triangles of stocks, about three links per stock. Hub scores are measured on this graph.",
+  },
+  {
+    id: "partial",
+    label: "Direct ties",
+    note: "Partial correlation: a link only when two stocks are tied after every other stock is accounted for. Links that exist only through a third stock drop out.",
+  },
+  {
+    id: "threshold",
+    label: "Threshold",
+    note: "Every pair whose correlation clears a significance bar corrected for testing all pairs at once.",
+  },
+  {
+    id: "leads",
+    label: "Lead-lag",
+    note: "An arrow from A to B means A's market-adjusted move today has tended to show up in B tomorrow. Only pairs that pass a strict significance test are drawn.",
+  },
+];
 
-interface WebResponse {
-  nodes: CorrelationNode[];
-  links: CorrelationLink[];
-  leads: CorrelationLead[];
-  sessions?: number;
-  linkThreshold?: number;
-  leadThreshold?: number;
-  missing?: string[];
-  error?: string;
+const ESTIMATORS: Array<{ id: Estimator; label: string; hint: string }> = [
+  { id: "lw", label: "Ledoit–Wolf", hint: "Shrinks noisy correlations towards their average by the statistically optimal amount" },
+  { id: "rmt", label: "Noise-filtered", hint: "Random-matrix filter: keeps only eigen-directions that stand out from pure noise" },
+  { id: "sample", label: "Sample", hint: "Plain sample correlation, no cleaning" },
+];
+
+function Chips<T extends string | number>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: Array<{ id: T; label: string; hint?: string }>;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2" role="group" aria-label={label}>
+      <span className="lq-lbl">{label}</span>
+      <div className="flex flex-wrap gap-2">
+        {options.map((o) => (
+          <button key={String(o.id)} type="button" className="lq-chip" aria-pressed={value === o.id} title={o.hint} onClick={() => onChange(o.id)}>
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
-const LENS_NOTE: Record<Lens, string> = {
-  adjusted:
-    "Market-adjusted: each stock's move with its index taken out, so a line means the two companies move together for their own reasons.",
-  raw: "Raw: plain correlation of daily returns. Most stocks look linked here simply because they all follow the market.",
-  leadlag:
-    "Lead-lag: an arrow from A to B means A's market-adjusted move today has tended to show up in B tomorrow. Only pairs that pass a strict significance test are drawn.",
-};
+function Kpi({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <div className="lq-panel px-4 py-3.5 flex flex-col gap-1 min-w-0">
+      <span className="lq-lbl">{label}</span>
+      <span className="lq-num text-xl text-lq-text">{value}</span>
+      <span className="text-[11px] text-lq-muted leading-snug">{sub}</span>
+    </div>
+  );
+}
 
-const idOf = (end: string | CorrelationNode) => (typeof end === "object" ? end.id : end);
+const pct = (v: number) => `${Math.round(v * 100)}%`;
 
-const getSectorColor = (sector: string) => {
-  if (sector === "Technology") return "#D4AF37";
-  if (sector === "Financials") return "#F5E6CA";
-  if (sector === "Healthcare") return "#9A7B31";
-  if (sector === "Energy") return "#3b82f6";
-  if (sector === "Consumer") return "#22c55e";
-  return "#64748b";
-};
+export default function CorrelationWebTab({ onSelectTicker, onAlertMessage }: CorrelationWebTabProps) {
+  const [market, setMarket] = useState<Market>("US");
+  const [days, setDays] = useState(90);
+  const [basis, setBasis] = useState<Basis>("residual");
+  const [estimator, setEstimator] = useState<Estimator>("lw");
+  const [kind, setKind] = useState<NetworkKind>("mst");
+  const [colorBy, setColorBy] = useState<"cluster" | "sector">("cluster");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [focusGroup, setFocusGroup] = useState<number | null>(null);
 
-const signed = (v: number, digits = 2) => `${v > 0 ? "+" : ""}${v.toFixed(digits)}`;
-
-export default function CorrelationWebTab({ tickers, onSelectTicker, onAlertMessage }: CorrelationWebTabProps) {
-  const d3ContainerRef = useRef<HTMLDivElement | null>(null);
-
-  const [selectedSector, setSelectedSector] = useState<string>("All Sectors");
-  const [selectedMarket, setSelectedMarket] = useState<"US" | "IN">("US");
-  const [selectedDays, setSelectedDays] = useState<number>(90);
-  const [lens, setLens] = useState<Lens>("adjusted");
-  const [networkError, setNetworkError] = useState<string | null>(null);
-  const [clickedNode, setClickedNode] = useState<CorrelationNode | null>(null);
-  const [zoomScale, setZoomLevel] = useState<number>(100);
-
-  const d3ZoomRef = useRef<any>(null);
-  const d3SvgRef = useRef<any>(null);
-
-  const [networkData, setNetworkData] = useState<WebResponse>({ nodes: [], links: [], leads: [] });
-  const [loading, setLoading] = useState<boolean>(true);
-
-  // Lead-lag is always computed on market-adjusted returns, so it shares the adjusted request.
-  const mode = lens === "raw" ? "raw" : "adjusted";
+  const [data, setData] = useState<Structure | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [regime, setRegime] = useState<Dynamics | null>(null);
+  const [regimeError, setRegimeError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    async function fetchNetwork() {
-      try {
-        setLoading(true);
-        setNetworkError(null);
-        const res = await fetch(`/api/correlation-web?market=${selectedMarket}&days=${selectedDays}&mode=${mode}`);
-        const data: WebResponse = await res.json();
-        if (cancelled) return;
-        if (!res.ok) setNetworkError(data.error || "Could not compute correlations.");
-        setNetworkData({ ...data, nodes: data.nodes || [], links: data.links || [], leads: data.leads || [] });
-        setClickedNode(null);
-      } catch (err) {
-        console.error("Failed to load correlation web:", err);
-        if (!cancelled) setNetworkError("Could not reach the server.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    fetchNetwork();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedMarket, selectedDays, mode]);
-
-  // Event study for the selected stock (two years of history, independent of the window).
-  const [study, setStudy] = useState<EventStudy | null>(null);
-  const [studyState, setStudyState] = useState<"idle" | "loading" | "error">("idle");
-  useEffect(() => {
-    if (!clickedNode) {
-      setStudy(null);
-      return;
-    }
-    let cancelled = false;
-    setStudyState("loading");
-    fetch(`/api/correlation-web/events?market=${selectedMarket}&symbol=${encodeURIComponent(clickedNode.id)}`)
-      .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
-      .then((data: EventStudy) => {
-        if (cancelled) return;
-        setStudy(data);
-        setStudyState("idle");
+    setLoading(true);
+    setError(null);
+    fetch(`/api/correlation-web/structure?market=${market}&days=${days}&basis=${basis}&estimator=${estimator}`)
+      .then(async (r) => {
+        const body = await r.json();
+        if (!r.ok) throw new Error(body.error || "Could not compute correlations.");
+        return body as Structure;
       })
-      .catch(() => !cancelled && setStudyState("error"));
+      .then((d) => !cancelled && setData(d))
+      .catch((e) => !cancelled && setError(e.message || "Could not reach the server."))
+      .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [clickedNode, selectedMarket]);
+  }, [market, days, basis, estimator]);
 
-  const uniqueSectors = useMemo(() => {
-    const list = new Set(networkData.nodes.map((n) => n.sector));
-    return ["All Sectors", ...Array.from(list)];
-  }, [networkData.nodes]);
+  useEffect(() => {
+    let cancelled = false;
+    setRegime(null);
+    setRegimeError(null);
+    fetch(`/api/correlation-web/dynamics?market=${market}`)
+      .then(async (r) => {
+        const body = await r.json();
+        if (!r.ok) throw new Error(body.error || "Regime metrics unavailable.");
+        return body as Dynamics;
+      })
+      .then((d) => !cancelled && setRegime(d))
+      .catch((e) => !cancelled && setRegimeError(e.message));
+    return () => {
+      cancelled = true;
+    };
+  }, [market]);
 
-  const nodeLinks = useMemo(() => {
-    if (!clickedNode) return [];
-    return networkData.links
-      .filter((l) => idOf(l.source) === clickedNode.id || idOf(l.target) === clickedNode.id)
-      .sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
-      .slice(0, 5)
-      .map((l) => ({
-        peerId: idOf(l.source) === clickedNode.id ? idOf(l.target) : idOf(l.source),
+  useEffect(() => {
+    setSelectedId(null);
+    setFocusGroup(null);
+  }, [market]);
+  useEffect(() => setFocusGroup(null), [colorBy, data]);
+
+  const sectors = useMemo(() => {
+    if (!data) return [] as string[];
+    const counts = new Map<string, number>();
+    data.nodes.forEach((n) => counts.set(n.sector, (counts.get(n.sector) ?? 0) + 1));
+    return [...counts.keys()].sort((a, b) => counts.get(b)! - counts.get(a)! || a.localeCompare(b));
+  }, [data]);
+
+  const groupOf = useCallback(
+    (n: WebNode) => (colorBy === "cluster" ? n.cluster : Math.max(0, sectors.indexOf(n.sector))),
+    [colorBy, sectors]
+  );
+  const groupLabel = useCallback((g: number) => (colorBy === "cluster" ? `Group ${g + 1}` : sectors[g] ?? "Other"), [colorBy, sectors]);
+  const groupCount = colorBy === "cluster" ? data?.clusters.k ?? 0 : sectors.length;
+
+  const edges: DrawEdge[] = useMemo(() => {
+    if (!data) return [];
+    if (kind === "leads")
+      return data.edges.leads.map((l) => ({
+        source: typeof l.source === "object" ? l.source.id : l.source,
+        target: typeof l.target === "object" ? l.target.id : l.target,
         value: l.value,
       }));
-  }, [clickedNode, networkData.links]);
+    return data.edges[kind];
+  }, [data, kind]);
 
-  const nodeLeads = useMemo(() => {
-    if (!clickedNode) return { leads: [], follows: [] };
-    return {
-      leads: networkData.leads.filter((l) => idOf(l.source) === clickedNode.id),
-      follows: networkData.leads.filter((l) => idOf(l.target) === clickedNode.id),
-    };
-  }, [clickedNode, networkData.leads]);
+  const selected = data?.nodes.find((n) => n.id === selectedId) ?? null;
+  const ranked = useMemo(() => (data ? [...data.nodes].sort((a, b) => b.hub - a.hub) : []), [data]);
+  const groupMembers = useMemo(() => {
+    if (!data) return [] as WebNode[][];
+    const out: WebNode[][] = Array.from({ length: groupCount }, () => []);
+    data.nodes.forEach((n) => out[groupOf(n)]?.push(n));
+    return out;
+  }, [data, groupCount, groupOf]);
 
-  // Draw the force-directed network
-  useEffect(() => {
-    if (loading || networkData.nodes.length === 0 || !d3ContainerRef.current) return;
+  const net = NETWORKS.find((x) => x.id === kind)!;
+  const emptyNote =
+    kind === "leads"
+      ? data && data.sessions < 60
+        ? "30 sessions is too short to test who moves first. Pick 90 days or 1 year."
+        : "No lead-lag pair passed the significance test in this window. That's the usual result for large, heavily traded stocks: news reaches them all on the same day."
+      : kind === "partial"
+      ? "No direct tie survives the partial-correlation test in this window."
+      : "No pair clears the significance threshold in this window.";
 
-    d3ContainerRef.current.innerHTML = "";
-    const containerWidth = d3ContainerRef.current.clientWidth || 800;
-    const containerHeight = d3ContainerRef.current.clientHeight || 550;
-
-    const svg = d3
-      .select(d3ContainerRef.current)
-      .append("svg")
-      .attr("width", "100%")
-      .attr("height", "100%")
-      .attr("viewBox", `0 0 ${containerWidth} ${containerHeight}`)
-      .attr("class", "select-none");
-    d3SvgRef.current = svg;
-
-    svg
-      .append("defs")
-      .append("marker")
-      .attr("id", "lead-arrow")
-      .attr("viewBox", "0 -5 10 10")
-      .attr("refX", 22)
-      .attr("refY", 0)
-      .attr("markerUnits", "userSpaceOnUse")
-      .attr("markerWidth", 10)
-      .attr("markerHeight", 10)
-      .attr("orient", "auto")
-      .append("path")
-      .attr("d", "M0,-5L10,0L0,5")
-      .attr("fill", "#D4AF37");
-
-    const g = svg.append("g");
-    const zoomBehavior = d3
-      .zoom()
-      .scaleExtent([0.15, 3.5])
-      .on("zoom", (event) => {
-        g.attr("transform", event.transform);
-        setZoomLevel(Math.round(event.transform.k * 100));
-      });
-    d3ZoomRef.current = zoomBehavior;
-    svg.call(zoomBehavior as any);
-    svg.call(zoomBehavior.transform as any, d3.zoomIdentity.translate(0, 0).scale(0.85));
-
-    // Copies, so d3's in-place mutation never leaks into React state.
-    const filteredNodes: CorrelationNode[] = networkData.nodes
-      .filter((node) => selectedSector === "All Sectors" || node.sector === selectedSector)
-      .map((n) => ({ ...n }));
-    const ids = new Set(filteredNodes.map((n) => n.id));
-    const keep = (e: { source: string | CorrelationNode; target: string | CorrelationNode }) =>
-      ids.has(idOf(e.source)) && ids.has(idOf(e.target));
-    const edges =
-      lens === "leadlag"
-        ? networkData.leads.filter(keep).map((l) => ({ source: idOf(l.source), target: idOf(l.target), value: l.value }))
-        : networkData.links.filter(keep).map((l) => ({ source: idOf(l.source), target: idOf(l.target), value: l.value }));
-
-    const simulation = d3
-      .forceSimulation(filteredNodes as any)
-      .force("link", d3.forceLink(edges as any).id((d: any) => d.id).distance(lens === "leadlag" ? 150 : 120).strength(0.45))
-      .force("charge", d3.forceManyBody().strength(-140))
-      .force("center", d3.forceCenter(containerWidth / 2, containerHeight / 2))
-      .force("collide", d3.forceCollide().radius(30));
-
-    const linkSelection = g
-      .append("g")
-      .selectAll("line")
-      .data(edges)
-      .join("line")
-      .attr("stroke", (d: any) =>
-        lens === "leadlag" ? "rgba(212,175,55,0.75)" : d.value >= 0 ? "rgba(212,175,55,0.45)" : "rgba(248,113,113,0.55)"
-      )
-      .attr("stroke-width", (d: any) => Math.max(1.2, Math.abs(d.value) * (lens === "leadlag" ? 6 : 3.5)))
-      .attr("marker-end", lens === "leadlag" ? "url(#lead-arrow)" : null);
-
-    const nodeSelection = g
-      .append("g")
-      .selectAll("g")
-      .data(filteredNodes)
-      .join("g")
-      .attr("class", "cursor-grab active:cursor-grabbing group")
-      .call(
-        d3
-          .drag<SVGGElement, CorrelationNode>()
-          .on("start", (event, d) => {
-            if (!event.active) simulation.alphaTarget(0.3).restart();
-            d.fx = d.x;
-            d.fy = d.y;
-          })
-          .on("drag", (event, d) => {
-            d.fx = event.x;
-            d.fy = event.y;
-          })
-          .on("end", (event, d) => {
-            if (!event.active) simulation.alphaTarget(0);
-            d.fx = null;
-            d.fy = null;
-          }) as any
-      )
-      .on("click", (event, d: any) => {
-        event.stopPropagation();
-        setClickedNode(networkData.nodes.find((n) => n.id === d.id) ?? d);
-      });
-
-    nodeSelection
-      .append("circle")
-      .attr("r", 9)
-      .attr("fill", (d: any) => getSectorColor(d.sector))
-      .attr("stroke", "#020202")
-      .attr("stroke-width", "2");
-    nodeSelection.append("circle").attr("r", 3).attr("fill", "#020202").attr("opacity", 0.9);
-    nodeSelection
-      .append("text")
-      .attr("dx", 12)
-      .attr("dy", ".35em")
-      .attr("fill", "#F2F2F2")
-      .attr("class", "font-mono font-bold select-none pointer-events-none")
-      .attr("font-size", "10px")
-      .text((d: any) => d.id);
-
-    simulation.on("tick", () => {
-      linkSelection
-        .attr("x1", (d: any) => d.source.x)
-        .attr("y1", (d: any) => d.source.y)
-        .attr("x2", (d: any) => d.target.x)
-        .attr("y2", (d: any) => d.target.y);
-      nodeSelection.attr("transform", (d: any) => `translate(${d.x},${d.y})`);
-    });
-
-    return () => {
-      simulation.stop();
-    };
-  }, [loading, networkData, selectedSector, lens]);
-
-  const triggerZoomIn = () => d3SvgRef.current?.transition().duration(300).call(d3ZoomRef.current.scaleBy, 1.25);
-  const triggerZoomOut = () => d3SvgRef.current?.transition().duration(300).call(d3ZoomRef.current.scaleBy, 0.8);
-  const triggerZoomReset = () =>
-    d3SvgRef.current
-      ?.transition()
-      .duration(500)
-      .call(d3ZoomRef.current.transform, d3.zoomIdentity.translate(0, 0).scale(0.85));
-
-  const edgeCount = lens === "leadlag" ? networkData.leads.length : networkData.links.length;
-  const emptyMessage =
-    lens === "leadlag" && (networkData.sessions ?? 0) < 60
-      ? "30 sessions is too short to test who moves first. Pick 90 days or 1 year."
-      : lens === "leadlag"
-      ? "No lead-lag pair passed the significance test in this window. That's the usual result for large, heavily traded stocks: news reaches them all on the same day."
-      : "No pair is linked strongly enough in this window to clear the significance threshold.";
-
-  const selectClass =
-    "bg-black border border-white/10 rounded-lg text-xs py-1.5 px-3 text-[#F2F2F2] focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30 outline-none cursor-pointer";
-  const labelClass = "font-mono text-[8px] tracking-[0.16em] text-white/45 font-bold uppercase";
+  const openChart = (id: string) => {
+    onSelectTicker(id);
+    onAlertMessage?.(`Opened chart: ${id}`);
+  };
 
   return (
-    <div className="flex-grow flex flex-col lg:flex-row w-full max-w-[1600px] mx-auto px-6 py-8 gap-6 font-sans relative overflow-hidden select-none">
-      <div className="flex-1 bg-[#050505] border border-white/10 rounded-2xl relative flex flex-col overflow-hidden min-h-[560px] shadow-2xl">
-        {/* Controls */}
-        <div className="absolute top-4 left-4 right-4 z-10 flex flex-wrap items-start justify-between gap-3 pointer-events-none">
-          <div className="flex flex-wrap gap-3 bg-black/80 backdrop-blur-md border border-white/10 p-3 rounded-xl shadow-2xl pointer-events-auto">
-            <label className="flex flex-col gap-1">
-              <span className={labelClass}>Lens</span>
-              <select value={lens} onChange={(e) => setLens(e.target.value as Lens)} className={selectClass}>
-                <option value="adjusted">Market-adjusted links</option>
-                <option value="raw">Raw correlation</option>
-                <option value="leadlag">Lead-lag (who moves first)</option>
-              </select>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className={labelClass}>Market</span>
-              <select
-                value={selectedMarket}
-                onChange={(e) => {
-                  setSelectedMarket(e.target.value as "US" | "IN");
-                  setSelectedSector("All Sectors");
-                }}
-                className={selectClass}
-              >
-                <option value="US">United States</option>
-                <option value="IN">India (NSE)</option>
-              </select>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className={labelClass}>Time range</span>
-              <select value={selectedDays} onChange={(e) => setSelectedDays(Number(e.target.value))} className={selectClass}>
-                <option value={30}>30 Days</option>
-                <option value={90}>90 Days</option>
-                <option value={250}>1 Year</option>
-              </select>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className={labelClass}>Sector</span>
-              <select
-                value={selectedSector}
-                onChange={(e) => {
-                  setSelectedSector(e.target.value);
-                  setClickedNode(null);
-                }}
-                className={selectClass}
-              >
-                {uniqueSectors.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </label>
+    <div className="relative z-[1] w-full max-w-[1600px] mx-auto px-4 sm:px-6 py-8 flex flex-col gap-6">
+      {/* Title */}
+      <header className="flex flex-col gap-2 lq-rise">
+        <span className="flex items-center gap-2 lq-lbl !text-lq-gold">
+          <span className="lq-marker" aria-hidden="true" /> Correlation Web · Market structure lab
+        </span>
+        <h1 className="lq-h1">How the market is wired</h1>
+        <p className="text-sm text-lq-text-2 max-w-3xl leading-relaxed">
+          Cleaned correlations, filtered networks, automatic groups, hub scores and a regime monitor for the stocks Lumina tracks.
+          Everything describes the past and is for practice, not advice.
+        </p>
+      </header>
+
+      {/* Controls */}
+      <section className="lq-panel p-4 sm:p-5 flex flex-wrap gap-x-8 gap-y-4 lq-rise" style={{ ["--lq-i" as any]: 1 }} aria-label="Analysis settings">
+        <Chips<Market>
+          label="Market"
+          value={market}
+          onChange={setMarket}
+          options={[
+            { id: "US", label: "United States" },
+            { id: "IN", label: "India (NSE)" },
+          ]}
+        />
+        <Chips<number>
+          label="Window"
+          value={days}
+          onChange={setDays}
+          options={[
+            { id: 30, label: "30 days" },
+            { id: 90, label: "90 days" },
+            { id: 250, label: "1 year" },
+          ]}
+        />
+        <Chips<Basis>
+          label="Returns"
+          value={basis}
+          onChange={setBasis}
+          options={[
+            { id: "residual", label: "Market-adjusted", hint: "Each stock's move with its index taken out" },
+            { id: "raw", label: "Raw", hint: "Plain daily returns; most stocks look linked through the market" },
+          ]}
+        />
+        <Chips<Estimator> label="Estimator" value={estimator} onChange={setEstimator} options={ESTIMATORS} />
+      </section>
+
+      {error && !loading && (
+        <div className="lq-panel p-6 text-sm text-lq-text-2" role="alert">
+          {error}
+        </div>
+      )}
+
+      {/* KPIs */}
+      {data && (
+        <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3" aria-label="Structure summary">
+          <Kpi
+            label="Average correlation"
+            value={data.stats.avgCorr.toFixed(2)}
+            sub={`${data.basis === "residual" ? "Market-adjusted" : "Raw"} · ${data.sessions} sessions`}
+          />
+          <Kpi
+            label="Absorption ratio"
+            value={pct(data.spectrum.absorption)}
+            sub={regime ? `${regime.absorptionPercentile}th percentile of 2 years (raw)` : "Top fifth of eigenvectors"}
+          />
+          <Kpi label="Factors above noise" value={String(data.spectrum.signal)} sub={`${data.basis === "residual" ? "Largest factor" : "Market mode"} ${pct(data.spectrum.marketShare)} of variance`} />
+          <Kpi label="Effective bets" value={data.spectrum.effectiveRank.toFixed(1)} sub={`Independent drivers among ${data.nodes.length} stocks`} />
+          <Kpi label="Groups found" value={String(data.clusters.k)} sub={`Silhouette ${data.clusters.silhouette.toFixed(2)}${data.clusters.silhouette < 0.1 ? " · weak" : ""}`} />
+          <Kpi
+            label={data.shrinkage !== null ? "Shrinkage" : "Backbone reliability"}
+            value={data.shrinkage !== null ? data.shrinkage.toFixed(2) : pct(data.stats.mstReliability)}
+            sub={data.shrinkage !== null ? `Backbone reliability ${pct(data.stats.mstReliability)}` : `Tree length ${data.stats.treeLength.toFixed(2)}`}
+          />
+        </section>
+      )}
+
+      {/* Network + side */}
+      <div className="flex flex-col xl:flex-row gap-6 items-start">
+        <section className="lq-panel w-full flex-1 min-w-0 flex flex-col overflow-hidden" aria-label="Correlation network">
+          <div className="p-4 sm:p-5 flex flex-col gap-4 border-b border-lq-line">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <Chips<NetworkKind> label="Network" value={kind} onChange={setKind} options={NETWORKS.map((n) => ({ id: n.id, label: n.label }))} />
+              <Chips<"cluster" | "sector">
+                label="Colour by"
+                value={colorBy}
+                onChange={setColorBy}
+                options={[
+                  { id: "cluster", label: "Groups found" },
+                  { id: "sector", label: "Sector" },
+                ]}
+              />
+            </div>
+            <p className="text-xs text-lq-muted leading-relaxed max-w-3xl">{net.note}</p>
           </div>
 
-          {!loading && !networkError && (
-            <div className="bg-black/80 backdrop-blur-md border border-white/10 px-3 py-2 rounded-xl font-mono text-[10px] text-white/55 leading-relaxed pointer-events-auto max-w-[260px]">
-              <span className="text-[#D4AF37] font-bold">{edgeCount}</span>{" "}
-              {lens === "leadlag" ? "lead-lag pairs" : "links"} · {networkData.sessions ?? "–"} sessions
-              <br />
-              Threshold |r| ≥ {lens === "leadlag" ? networkData.leadThreshold : networkData.linkThreshold}
-              {networkData.missing && networkData.missing.length > 0 && (
-                <>
-                  <br />
-                  No history: {networkData.missing.join(", ")}
-                </>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Graph */}
-        <div className="flex-1 w-full h-full relative cursor-grab active:cursor-grabbing" id="d3-correlation-network-view" ref={d3ContainerRef}>
-          {loading && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 font-mono text-xs text-white/30 bg-black/60">
-              <RefreshCw className="w-4 h-4 animate-spin text-[#D4AF37]" />
-              <span>Computing return correlations...</span>
-            </div>
-          )}
-          {!loading && networkError && (
-            <div className="absolute inset-0 flex items-center justify-center font-mono text-xs text-white/50 bg-black/60 px-6 text-center">
-              {networkError}
-            </div>
-          )}
-        </div>
-        {!loading && !networkError && edgeCount === 0 && (
-          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 mx-auto max-w-md text-center text-xs text-white/55 bg-black/75 border border-white/10 rounded-xl px-5 py-4 pointer-events-none">
-            {emptyMessage}
+          <div className="relative h-[560px] sm:h-[620px] overflow-hidden">
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                background:
+                  "radial-gradient(ellipse 45% 40% at 50% 50%, rgba(143,123,255,0.08), transparent 70%), radial-gradient(ellipse 70% 60% at 50% 50%, rgba(212,175,55,0.035), transparent 75%)",
+              }}
+            />
+            {data && !loading && (
+              <NetworkView
+                nodes={data.nodes}
+                edges={edges}
+                kind={kind}
+                groupOf={groupOf}
+                selectedId={selectedId}
+                focusGroup={focusGroup}
+                onSelect={setSelectedId}
+              />
+            )}
+            {loading && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-xs text-lq-muted">
+                <RefreshCw className="w-4 h-4 animate-spin text-lq-gold" aria-hidden="true" />
+                <span>Estimating correlations, networks and clusters…</span>
+              </div>
+            )}
+            {data && !loading && edges.length === 0 && (
+              <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 mx-auto max-w-md text-center text-xs text-lq-text-2 lq-card px-5 py-4 pointer-events-none">
+                {emptyNote}
+              </div>
+            )}
           </div>
-        )}
 
-        {/* Zoom */}
-        <div className="absolute bottom-4 right-4 z-10 flex flex-col bg-black/80 border border-white/10 p-1.5 rounded-xl shadow-2xl gap-1">
-          <button onClick={triggerZoomIn} className="p-1.5 text-white/50 hover:text-[#D4AF37] hover:bg-white/5 rounded-lg transition-colors cursor-pointer" title="Zoom In">
-            <ZoomIn className="w-3.5 h-3.5" />
-          </button>
-          <span className="font-mono text-[8px] text-white/40 text-center py-0.5 block">{zoomScale}%</span>
-          <button onClick={triggerZoomOut} className="p-1.5 text-white/50 hover:text-[#D4AF37] hover:bg-white/5 rounded-lg transition-colors cursor-pointer" title="Zoom Out">
-            <ZoomOut className="w-3.5 h-3.5" />
-          </button>
-          <div className="h-px bg-white/5 my-0.5" />
-          <button onClick={triggerZoomReset} className="p-1.5 text-white/50 hover:text-[#D4AF37] hover:bg-white/5 rounded-lg transition-colors cursor-pointer" title="Fit to Screen">
-            <Maximize2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        {/* Legend + lens explanation */}
-        <div className="absolute bottom-4 left-4 right-24 z-10 bg-black/80 backdrop-blur-sm border border-white/10 p-3 rounded-xl shadow-lg flex flex-col gap-2 max-w-xl">
-          {lens === "leadlag" ? (
-            <div className="flex items-center gap-2 font-mono text-[9px] text-white/60">
-              <span className="font-bold text-white/80">A</span>
-              <span className="w-10 h-0.5 bg-[#D4AF37] relative after:content-[''] after:absolute after:-right-1 after:-top-[3px] after:border-y-4 after:border-y-transparent after:border-l-[6px] after:border-l-[#D4AF37]" />
-              <span className="font-bold text-white/80">B</span>
-              <span>A moves today, B tends to follow tomorrow</span>
+          {data && (
+            <div className="p-4 sm:p-5 border-t border-lq-line flex flex-col gap-3">
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Focus a group">
+                {groupMembers.map((members, g) =>
+                  members.length ? (
+                    <button
+                      key={g}
+                      type="button"
+                      className="lq-chip"
+                      aria-pressed={focusGroup === g}
+                      onClick={() => setFocusGroup(focusGroup === g ? null : g)}
+                      title={members.map((m) => m.id).join(", ")}
+                    >
+                      <GroupSwatch group={g} /> {groupLabel(g)} <span className="lq-num opacity-70">{members.length}</span>
+                    </button>
+                  ) : null
+                )}
+              </div>
+              <div className="flex flex-wrap gap-x-6 gap-y-1 text-[11px] text-lq-muted">
+                <span className="flex items-center gap-2">
+                  <span className="inline-block w-6 h-0.5 bg-lq-gold-soft" aria-hidden="true" /> Move together
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="inline-block w-6 border-t-2 border-dashed" style={{ borderColor: "#3987e5" }} aria-hidden="true" /> Move opposite
+                </span>
+                <span>Thicker = stronger · Bigger node = higher hub score</span>
+                {kind === "mst" && <span>Faint edge = less reliable under resampling</span>}
+                {kind === "partial" && data.thresholds.partialTest === "ranked" && (
+                  <span>Too few days for a formal test; showing the {data.nodes.length} strongest direct ties</span>
+                )}
+                {kind === "threshold" && <span>|ρ| ≥ {data.thresholds.link}</span>}
+                {data.missing.length > 0 && <span>No history: {data.missing.join(", ")}</span>}
+              </div>
             </div>
+          )}
+        </section>
+
+        <div className="w-full xl:w-[400px] flex-none flex flex-col gap-6">
+          {data && selected ? (
+            <NodeDetail
+              key={selected.id}
+              node={selected}
+              data={data}
+              market={market}
+              groupOf={groupOf}
+              groupLabel={groupLabel}
+              onClose={() => setSelectedId(null)}
+              onSelect={setSelectedId}
+              onOpenChart={openChart}
+            />
           ) : (
-            <div className="flex items-center gap-3 font-mono text-[9px] text-white/60">
-              <span className="flex items-center gap-1.5">
-                <span className="w-6 h-0.5 bg-[#D4AF37]" /> Move together
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-6 h-0.5 bg-red-400" /> Move opposite
-              </span>
-              <span>Thicker = stronger</span>
-            </div>
+            data && (
+              <section className="lq-panel p-5 flex flex-col gap-3" aria-labelledby="cw-hubs">
+                <h2 id="cw-hubs" className="lq-h3">
+                  Systemic hubs
+                </h2>
+                <p className="text-xs text-lq-muted leading-relaxed">
+                  Ranked by hub score on the filtered graph. Hubs pass shocks on to many stocks; periphery names diversify. Select a stock
+                  for its neighbours, pair charts and event study.
+                </p>
+                <div className="overflow-x-auto -mx-1">
+                  <table className="lq-table text-xs">
+                    <thead>
+                      <tr>
+                        <th scope="col">#</th>
+                        <th scope="col">Stock</th>
+                        <th scope="col">Role</th>
+                        <th scope="col" className="!text-right">
+                          Hub
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ranked.map((n, i) => (
+                        <tr key={n.id}>
+                          <td className="!py-1.5 lq-num text-lq-muted">{i + 1}</td>
+                          <td className="!py-1.5">
+                            <button
+                              type="button"
+                              className="flex items-center gap-2 lq-num text-lq-text hover:text-lq-gold"
+                              onClick={() => setSelectedId(n.id)}
+                            >
+                              <GroupSwatch group={groupOf(n)} size={10} /> {n.id}
+                            </button>
+                          </td>
+                          <td className="!py-1.5 text-lq-text-2">{ROLE_LABEL[n.role]}</td>
+                          <td className="!py-1.5">
+                            <span className="flex items-center justify-end gap-2">
+                              <span className="h-1.5 w-16 rounded-full bg-lq-surface-2 overflow-hidden" aria-hidden="true">
+                                <span className="block h-full rounded-full bg-lq-text-2" style={{ width: `${Math.round(n.hub * 100)}%` }} />
+                              </span>
+                              <span className="lq-num text-lq-text w-6 text-right">{Math.round(n.hub * 100)}</span>
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )
           )}
-          <p className="text-[10px] text-white/45 leading-relaxed">{LENS_NOTE[lens]}</p>
         </div>
       </div>
 
-      {/* Detail panel */}
-      {clickedNode && (
-        <aside className="w-full lg:w-[22rem] flex-shrink-0 flex flex-col bg-[#050505] border border-white/10 rounded-2xl overflow-y-auto lg:max-h-[calc(100vh-160px)] shadow-2xl">
-          <div className="flex flex-col gap-4 p-5">
-            <div className="flex justify-between items-start border-b border-white/10 pb-4">
-              <div>
-                <h2 className="text-xl font-serif font-light text-[#F2F2F2] tracking-wide">{clickedNode.id}</h2>
-                <p className="text-[10px] text-white/40 font-medium leading-normal mt-1">{clickedNode.name}</p>
-              </div>
-              <button onClick={() => setClickedNode(null)} className="text-white/40 hover:text-white transition-colors p-1 cursor-pointer" aria-label="Close">
-                <X className="w-5 h-5" />
-              </button>
+      {/* Matrix + spectrum */}
+      {data && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <section className="lq-panel p-5 flex flex-col gap-4" aria-labelledby="cw-matrix">
+            <div className="flex items-center gap-2">
+              <span className="lq-marker" aria-hidden="true" />
+              <h2 id="cw-matrix" className="lq-h3">
+                Clustered correlation matrix
+              </h2>
             </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-black/40 p-3 rounded-xl border border-white/5">
-                <span className="font-mono text-[8px] tracking-wider text-white/40 uppercase block">Sector</span>
-                <span className="text-white/80 text-xs font-bold block mt-1 truncate">{clickedNode.sector}</span>
-              </div>
-              <div className="bg-black/40 p-3 rounded-xl border border-white/5">
-                <span className="font-mono text-[8px] tracking-wider text-white/40 uppercase block">Beta to index</span>
-                <span className="text-[#D4AF37] text-xs font-mono font-bold block mt-1">{clickedNode.beta}</span>
-              </div>
+            <MatrixHeatmap data={data} selectedId={selectedId} onSelect={setSelectedId} />
+          </section>
+          <section className="lq-panel p-5 flex flex-col gap-4" aria-labelledby="cw-spectrum">
+            <div className="flex items-center gap-2">
+              <span className="lq-marker" aria-hidden="true" />
+              <h2 id="cw-spectrum" className="lq-h3">
+                Eigenvalue spectrum vs. noise
+              </h2>
             </div>
-
-            {/* Links */}
-            <section className="bg-black/30 p-4 rounded-xl border border-white/5 flex flex-col gap-2">
-              <span className="font-mono text-[9px] tracking-wider text-white/45 uppercase font-bold">
-                Strongest links · {mode === "raw" ? "raw" : "market-adjusted"}
-              </span>
-              {nodeLinks.length > 0 ? (
-                nodeLinks.map((rel) => (
-                  <div key={rel.peerId} className="flex justify-between items-center py-1.5 px-3 bg-black/40 border border-white/5 rounded-lg font-mono text-xs">
-                    <span className="text-[#F2F2F2]/80 font-bold">{rel.peerId}</span>
-                    <span className={`font-bold text-[10px] ${rel.value >= 0 ? "text-[#D4AF37]" : "text-red-400"}`}>{signed(rel.value)}</span>
-                  </div>
-                ))
-              ) : (
-                <span className="text-white/35 text-xs">No link clears the threshold in this window.</span>
-              )}
-            </section>
-
-            {/* Lead-lag */}
-            <section className="bg-black/30 p-4 rounded-xl border border-white/5 flex flex-col gap-2">
-              <span className="font-mono text-[9px] tracking-wider text-white/45 uppercase font-bold">Who moves first</span>
-              {nodeLeads.leads.length === 0 && nodeLeads.follows.length === 0 ? (
-                <span className="text-white/35 text-xs">No significant lead-lag pair involving {clickedNode.id} in this window.</span>
-              ) : (
-                <>
-                  {nodeLeads.leads.map((l) => (
-                    <div key={`l-${idOf(l.target)}`} className="flex items-center justify-between text-xs font-mono py-1">
-                      <span className="flex items-center gap-1.5 text-white/80">
-                        {clickedNode.id} <ArrowRight className="w-3 h-3 text-[#D4AF37]" /> <b>{idOf(l.target)}</b>
-                      </span>
-                      <span className="text-[#D4AF37] text-[10px]">r {signed(l.value)}</span>
-                    </div>
-                  ))}
-                  {nodeLeads.follows.map((l) => (
-                    <div key={`f-${idOf(l.source)}`} className="flex items-center justify-between text-xs font-mono py-1">
-                      <span className="flex items-center gap-1.5 text-white/80">
-                        <b>{idOf(l.source)}</b> <ArrowRight className="w-3 h-3 text-[#D4AF37]" /> {clickedNode.id}
-                      </span>
-                      <span className="text-[#D4AF37] text-[10px]">r {signed(l.value)}</span>
-                    </div>
-                  ))}
-                  <span className="text-[10px] text-white/35">Today's move in the first stock, tomorrow's in the second.</span>
-                </>
-              )}
-            </section>
-
-            {/* Event study */}
-            <section className="bg-black/30 p-4 rounded-xl border border-white/5 flex flex-col gap-2">
-              <span className="font-mono text-[9px] tracking-wider text-white/45 uppercase font-bold">After {clickedNode.id}'s biggest moves</span>
-              {studyState === "loading" && <span className="text-white/35 text-xs">Running the event study…</span>}
-              {studyState === "error" && <span className="text-white/35 text-xs">Couldn't run the event study.</span>}
-              {studyState === "idle" && study && study.events.length === 0 && (
-                <span className="text-white/35 text-xs">Not enough history for an event study.</span>
-              )}
-              {studyState === "idle" && study && study.events.length > 0 && (
-                <>
-                  <p className="text-[10px] text-white/45 leading-relaxed">
-                    The {study.events.length} largest market-adjusted moves in two years (each at least {study.threshold}%). Peer
-                    moves are signed so <b className="text-white/70">+</b> means the same direction as {clickedNode.id}.
-                  </p>
-                  {study.self && (
-                    <div className="text-[11px] text-white/70 bg-black/40 border border-white/5 rounded-lg px-3 py-2">
-                      {clickedNode.id} itself, next 5 days:{" "}
-                      <b className={study.self.next5 >= 0 ? "text-[#D4AF37]" : "text-red-400"}>{signed(study.self.next5)}%</b>{" "}
-                      (
-                      {study.self.significant
-                        ? study.self.next5 >= 0
-                          ? "tends to keep going"
-                          : "tends to give some back"
-                        : "no reliable follow-through"}
-                      )
-                    </div>
-                  )}
-                  <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-1 font-mono text-[10px] items-center">
-                    <span className="text-white/35">Peer</span>
-                    <span className="text-white/35 text-right">Same day</span>
-                    <span className="text-white/35 text-right">Next 5d</span>
-                    {study.peers.slice(0, 8).map((p) => (
-                      <React.Fragment key={p.id}>
-                        <span className="text-white/80 font-bold flex items-center gap-1.5">
-                          {p.id}
-                          {p.significant && (
-                            <span className="text-[8px] px-1 py-px rounded bg-[#D4AF37]/15 text-[#D4AF37] font-bold" title={`p = ${p.p}`}>
-                              SIG
-                            </span>
-                          )}
-                        </span>
-                        <span className={`text-right ${p.sameDay >= 0 ? "text-white/60" : "text-red-400/80"}`}>{signed(p.sameDay)}%</span>
-                        <span className={`text-right font-bold ${p.next5 >= 0 ? "text-[#D4AF37]" : "text-red-400"}`}>{signed(p.next5)}%</span>
-                      </React.Fragment>
-                    ))}
-                  </div>
-                  <span className="text-[10px] text-white/35 leading-relaxed">
-                    SIG = passes a t-test corrected for testing every peer at once. Without it, treat the number as noise.
+            <SpectrumChart spectrum={data.spectrum} n={data.nodes.length} adjusted={data.basis === "residual"} />
+            <div className="border-t border-lq-line pt-4 flex flex-col gap-2">
+              <span className="lq-lbl">Why {data.clusters.k} groups</span>
+              <div className="flex flex-wrap gap-2">
+                {data.clusters.scan.map((s) => (
+                  <span
+                    key={s.k}
+                    className={`lq-card px-2.5 py-1.5 lq-num text-[11px] ${s.k === data.clusters.k ? "!border-lq-gold-line text-lq-text" : "text-lq-muted"}`}
+                  >
+                    k={s.k} · {s.silhouette.toFixed(2)}
                   </span>
-                </>
-              )}
-            </section>
-
-            <button
-              onClick={() => {
-                onSelectTicker(clickedNode.id);
-                onAlertMessage?.(`Opened chart: ${clickedNode.id}`);
-              }}
-              className="w-full bg-gradient-to-tr from-[#D4AF37] to-[#F5E6CA] text-black py-3 rounded-xl text-xs font-semibold uppercase tracking-wider hover:opacity-90 transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Activity className="w-4 h-4 text-black" /> Open chart
-            </button>
-          </div>
-        </aside>
+                ))}
+              </div>
+              <p className="text-[11px] text-lq-muted leading-relaxed">
+                The clustering tree is cut where the average silhouette (how much closer each stock is to its own group than to the next) is
+                highest. Below about 0.1 the groups are weak and should not be read too closely.
+              </p>
+            </div>
+          </section>
+        </div>
       )}
+
+      {/* Regime */}
+      <section className="lq-panel p-5 flex flex-col gap-4" aria-labelledby="cw-regime">
+        <div className="flex items-center gap-2">
+          <span className="lq-marker" aria-hidden="true" />
+          <h2 id="cw-regime" className="lq-h3">
+            Regime monitor
+          </h2>
+        </div>
+        {regime ? (
+          <RegimePanel data={regime} />
+        ) : (
+          <p className="text-xs text-lq-muted">{regimeError ?? "Computing rolling windows…"}</p>
+        )}
+      </section>
+
+      {/* Method */}
+      <details className="lq-panel p-5 text-xs text-lq-text-2 leading-relaxed">
+        <summary className="cursor-pointer lq-lbl !text-lq-text-2">Method and references</summary>
+        <ul className="mt-3 flex flex-col gap-2 list-disc pl-5 marker:text-lq-gold">
+          <li>
+            Returns are daily, outlier-capped at ±3 robust standard deviations, and by default market-adjusted (residuals after each
+            stock's beta to its index).
+          </li>
+          <li>
+            Ledoit–Wolf (2003) shrinks the correlation matrix towards a constant-correlation target with the optimal intensity. The
+            noise filter clips eigenvalues inside the Marchenko–Pastur band (Laloux et al. 1999; Plerou et al. 2002).
+          </li>
+          <li>Distance between two stocks is √(2(1 − ρ)) (Mantegna 1999). Partial correlations come from the inverse of the cleaned matrix.</li>
+          <li>
+            Backbone: minimum spanning tree, with edge reliability from a 5-day block bootstrap (Tumminello et al. 2007). Filtered graph:
+            TMFG (Massara, Di Matteo &amp; Aste 2016).
+          </li>
+          <li>Groups: average-linkage clustering cut at the best silhouette. Hub score: mean percentile of strength, eigenvector, betweenness and closeness centrality (Pozzi et al. 2013).</li>
+          <li>
+            Regime: absorption ratio and its 15-day shift (Kritzman et al. 2011), spanning-tree length and survival (Onnela et al. 2003)
+            over rolling 60-session windows.
+          </li>
+          <li>Lead-lag pairs and partial ties pass Bonferroni-corrected tests, so a few links are expected to be missing rather than false.</li>
+        </ul>
+      </details>
     </div>
   );
 }
