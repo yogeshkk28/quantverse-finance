@@ -982,6 +982,49 @@ g[data-state="open"] .lq-hours__label {
 .lq-legal__body a {
   color: var(--gold-pale);
 }
+.lq-legal__body h2 {
+  scroll-margin-top: 110px;
+}
+.lq-legal__body p + p,
+.lq-legal__body p + ul,
+.lq-legal__body ul + p,
+.lq-legal__callout + ul {
+  margin-top: 14px;
+}
+.lq-legal__toc {
+  margin-top: 40px;
+  padding: 20px 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.lq-legal__toc ol {
+  margin: 0;
+  padding-left: 1.4em;
+  list-style: decimal;
+  columns: 2 200px;
+  column-gap: 32px;
+  font-size: 0.9375rem;
+}
+.lq-legal__toc li {
+  break-inside: avoid;
+  padding: 3px 0;
+}
+.lq-legal__toc a {
+  color: var(--fg-muted);
+  text-decoration: none;
+}
+.lq-legal__toc a:hover,
+.lq-legal__toc a:focus-visible {
+  color: var(--gold-pale);
+  text-decoration: underline;
+}
+.lq-legal__callout {
+  padding: 18px 22px;
+  border-left: 2px solid var(--gold);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: rgba(212, 175, 55, 0.08);
+  color: var(--fg);
+}
 .lq-legal__back {
   margin-top: 72px;
 }
