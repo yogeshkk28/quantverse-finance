@@ -2,25 +2,25 @@
 @import url("https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=Noto+Sans+Devanagari:wght@300;400&display=swap");
 
 .lq {
-  /* Colour */
-  --bg: #000000;
-  --bg-soft: #0a0a0a;
-  --fg: #ffffff;
-  --fg-muted: rgba(255, 255, 255, 0.68);
-  --line: rgba(255, 255, 255, 0.22);
+  /* Colour: mapped onto the Event Horizon tokens in src/theme/event-horizon.css */
+  --bg: var(--lq-bg);
+  --bg-soft: var(--lq-bg-2);
+  --fg: var(--lq-text);
+  --fg-muted: var(--lq-text-2);
+  --line: var(--lq-line-2);
   --light-bg: #e6e4df;
   --light-fg: #0b0b0b;
   --light-muted: #3d3b36;
-  --gold: #d4af37;
-  --gold-pale: #f5e6ca;
+  --gold: var(--lq-gold);
+  --gold-pale: var(--lq-gold-soft);
   --amber: #f0913f;
-  --accent-grad: linear-gradient(90deg, #f0913f, #d4af37 55%, #f5e6ca);
-  --green: #25d366;
+  --accent-grad: linear-gradient(90deg, var(--lq-gold-soft), var(--lq-gold) 55%, var(--lq-violet));
+  --green: var(--lq-up);
   --blue: #2f6bff;
-  --purple: #b620ff;
+  --purple: var(--lq-violet);
 
   /* Type */
-  --font: "Jost", "Futura", "Avenir Next", "Century Gothic", "Nirmala UI", "Noto Sans Devanagari",
+  --font: "Inter", "Jost", "Futura", "Avenir Next", "Century Gothic", "Nirmala UI", "Noto Sans Devanagari",
     "Yu Gothic", "Malgun Gothic", "Microsoft YaHei", "Noto Sans KR", "Noto Sans SC", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
 
@@ -1037,4 +1037,18 @@ g[data-state="open"] .lq-hours__label {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
   }
+}
+
+/* ------------------------------------------------------------------ Event Horizon type */
+/* Display headings use the theme's serif; body copy uses Inter (see --font above). */
+.lq .lq-statement,
+.lq .lq-hero__title {
+  font-family: var(--lq-font-display);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.lq .lq-legal__body h1,
+.lq .lq-legal__body h2 {
+  font-family: var(--lq-font-display);
+  font-weight: 500;
 }

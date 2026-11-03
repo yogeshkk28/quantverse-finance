@@ -46,7 +46,7 @@ export default function Header({ activeTab, setActiveTab, onNotificationsClick }
         <button
           type="button"
           onClick={() => go("dashboard")}
-          className="font-serif text-[26px] font-medium leading-none text-lq-gold hover:text-lq-gold-soft transition-colors whitespace-nowrap"
+          className="font-serif text-[22px] md:text-[26px] font-medium leading-none text-lq-gold hover:text-lq-gold-soft transition-colors whitespace-nowrap"
         >
           Lumina Quant
         </button>
@@ -73,7 +73,7 @@ export default function Header({ activeTab, setActiveTab, onNotificationsClick }
           })}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2 md:gap-3">
+        <div className="ml-auto flex items-center gap-1.5 md:gap-3">
           <span className="hidden md:inline lq-tag" title="Every trade here is simulated with virtual money">
             Paper trading
           </span>
@@ -83,7 +83,7 @@ export default function Header({ activeTab, setActiveTab, onNotificationsClick }
             type="button"
             onClick={onNotificationsClick}
             aria-label="Activity log"
-            className="relative w-10 h-10 inline-flex items-center justify-center rounded-full text-lq-muted hover:text-lq-gold hover:bg-lq-surface-2 transition-colors"
+            className="relative w-10 h-10 hidden sm:inline-flex items-center justify-center rounded-full text-lq-muted hover:text-lq-gold hover:bg-lq-surface-2 transition-colors"
           >
             <Bell className="w-4 h-4" />
           </button>
@@ -103,6 +103,17 @@ export default function Header({ activeTab, setActiveTab, onNotificationsClick }
             {menuOpen && (
               <div role="menu" className="lq-panel absolute right-0 mt-2 w-60 p-2">
                 <p className="px-3 py-2 text-[12px] text-lq-muted truncate m-0">{user?.email}</p>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onNotificationsClick?.();
+                  }}
+                  className="sm:hidden w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] text-lq-text-2 hover:bg-lq-surface-2 hover:text-lq-gold"
+                >
+                  <Bell className="w-3.5 h-3.5" /> Activity log
+                </button>
                 <button
                   type="button"
                   role="menuitem"

@@ -60,7 +60,7 @@ export default function MarketStatusPill() {
         aria-expanded={open}
         aria-controls="lq-market-status"
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-2.5 min-h-10 px-3.5 rounded-full bg-lq-surface-2 text-lq-text text-[13px] font-medium border border-[rgba(143,123,255,0.45)] shadow-[0_0_18px_var(--lq-violet-glow)] hover:border-lq-violet transition-colors"
+        className="inline-flex items-center gap-2 sm:gap-2.5 min-h-10 px-3 sm:px-3.5 rounded-full bg-lq-surface-2 text-lq-text text-[13px] font-medium border border-[rgba(143,123,255,0.45)] shadow-[0_0_18px_var(--lq-violet-glow)] hover:border-lq-violet transition-colors"
       >
         <span
           aria-hidden="true"

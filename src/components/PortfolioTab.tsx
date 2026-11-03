@@ -78,20 +78,23 @@ export default function PortfolioTab({ tickers, portfolio, onSelectTicker, onCle
   // Sector colors matching the premium theme palette with elegant gold variants
   const SECTOR_COLORS = ["#D4AF37", "#F5E6CA", "#9A7B31", "#3b82f6", "#22c55e", "#64748b"];
 
-  // 30-day realistic portfolio growth simulation curve
+  // Real equity curve: one snapshot per day of the paper account's value, kept on this device.
   const growthCurve = useMemo(() => {
-    const points = [];
-    const baseValue = netPortfolioValue * 0.95;
-    for (let i = 0; i < 30; i++) {
-      const noise = 1 + Math.sin(i * 0.4) * 0.02 + Math.cos(i * 0.1) * 0.015;
-      points.push({
-        date: `Day ${i + 1}`,
-        Value: parseFloat((baseValue * (1 + (i * 0.002)) * noise).toFixed(2))
-      });
+    const KEY = "lumina_quant_nav";
+    let snaps: { date: string; Value: number }[] = [];
+    try {
+      const raw = JSON.parse(localStorage.getItem(KEY) || "[]");
+      if (Array.isArray(raw)) snaps = raw;
+    } catch {}
+    const today = new Date().toISOString().slice(0, 10);
+    const value = parseFloat(netPortfolioValue.toFixed(2));
+    if (Number.isFinite(value) && value > 0) {
+      snaps = snaps.filter((p) => p.date !== today).concat({ date: today, Value: value }).slice(-90);
+      try {
+        localStorage.setItem(KEY, JSON.stringify(snaps));
+      } catch {}
     }
-    // Make last point exactly match current value
-    points[points.length - 1].Value = netPortfolioValue;
-    return points;
+    return snaps.slice(-30);
   }, [netPortfolioValue]);
 
   return (
@@ -101,41 +104,41 @@ export default function PortfolioTab({ tickers, portfolio, onSelectTicker, onCle
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 select-none">
         
         {/* Net Asset Value card */}
-        <div className="bg-[#050505] border border-white/10 rounded-2xl p-5 shadow-xl bg-gradient-to-b from-white/[0.03] to-transparent">
-          <span className="font-mono text-[9px] tracking-[0.16em] text-white/45 uppercase font-bold block">Net Asset Value (NAV)</span>
-          <h2 className="text-2xl font-light text-[#F2F2F2] font-sans tracking-tight mt-2.5">
+        <div className="lq-panel  p-5 shadow-xl bg-gradient-to-b from-white/[0.03] to-transparent">
+          <span className="font-mono text-[11px] tracking-[0.16em] text-lq-muted uppercase font-bold block">Net Asset Value (NAV)</span>
+          <h2 className="text-2xl font-light text-lq-text font-sans tracking-tight mt-2.5">
             ${netPortfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </h2>
-          <span className="text-[10px] text-white/40 mt-1.5 block">Combined cash & equities balance.</span>
+          <span className="text-[11px] text-lq-muted mt-1.5 block">Combined cash & equities balance.</span>
         </div>
 
         {/* Free Cash card */}
-        <div className="bg-[#050505] border border-white/10 rounded-2xl p-5 shadow-xl bg-gradient-to-b from-white/[0.03] to-transparent">
-          <span className="font-mono text-[9px] tracking-[0.16em] text-white/45 uppercase font-bold block">Available Cash reserve</span>
-          <h2 className="text-2xl font-light text-[#D4AF37] font-sans tracking-tight mt-2.5">
+        <div className="lq-panel  p-5 shadow-xl bg-gradient-to-b from-white/[0.03] to-transparent">
+          <span className="font-mono text-[11px] tracking-[0.16em] text-lq-muted uppercase font-bold block">Available Cash reserve</span>
+          <h2 className="text-2xl font-light text-lq-gold font-sans tracking-tight mt-2.5">
             ${portfolio.cash.toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </h2>
-          <span className="text-[10px] text-green-400 font-semibold inline-flex items-center gap-1 mt-1.5 uppercase font-mono tracking-wider">
-            Ready for allocation <Activity className="w-3 h-3 text-green-400" />
+          <span className="text-[11px] text-lq-up font-semibold inline-flex items-center gap-1 mt-1.5 uppercase font-mono tracking-wider">
+            Ready for allocation <Activity className="w-3 h-3 text-lq-up" />
           </span>
         </div>
 
         {/* Equities Exposure */}
-        <div className="bg-[#050505] border border-white/10 rounded-2xl p-5 shadow-xl bg-gradient-to-b from-white/[0.03] to-transparent">
-          <span className="font-mono text-[9px] tracking-[0.16em] text-white/45 uppercase font-bold block">Equities exposure</span>
-          <h2 className="text-2xl font-light text-[#F5E6CA] font-sans tracking-tight mt-2.5">
+        <div className="lq-panel  p-5 shadow-xl bg-gradient-to-b from-white/[0.03] to-transparent">
+          <span className="font-mono text-[11px] tracking-[0.16em] text-lq-muted uppercase font-bold block">Equities exposure</span>
+          <h2 className="text-2xl font-light text-lq-gold-soft font-sans tracking-tight mt-2.5">
             ${totalHoldingsValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </h2>
-          <span className="text-[10px] text-[#D4AF37] font-mono uppercase tracking-wider mt-1.5 block">
+          <span className="text-[11px] text-lq-gold font-mono uppercase tracking-wider mt-1.5 block">
             {netPortfolioValue > 0 ? ((totalHoldingsValue / netPortfolioValue) * 100).toFixed(1) : 0}% aggregate weight.
           </span>
         </div>
 
         {/* Action card: Reset or balance config */}
-        <div className="bg-[#050505] border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col justify-between bg-gradient-to-b from-white/[0.03] to-transparent">
+        <div className="lq-panel  p-5 shadow-xl flex flex-col justify-between bg-gradient-to-b from-white/[0.03] to-transparent">
           <div>
-            <span className="font-mono text-[9px] tracking-[0.16em] text-white/45 uppercase font-bold block">Clearing desk controls</span>
-            <p className="text-[10px] text-white/40 mt-1 select-none">Resets portfolio balance to initial $100,000.00 cash benchmark.</p>
+            <span className="font-mono text-[11px] tracking-[0.16em] text-lq-muted uppercase font-bold block">Paper account controls</span>
+            <p className="text-[11px] text-lq-muted mt-1 select-none">Resets portfolio balance to initial $100,000.00 cash benchmark.</p>
           </div>
           <button 
             type="button"
@@ -143,7 +146,7 @@ export default function PortfolioTab({ tickers, portfolio, onSelectTicker, onCle
               onClearPortfolio?.();
               onAlertMessage?.("Reset portfolio to original standard state ($100,000.00 cash).");
             }}
-            className="w-full bg-[#0d0d0d] hover:bg-white/[0.04] border border-white/10 text-[#D4AF37] py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer text-center block whitespace-nowrap mt-3 uppercase tracking-wider duration-200"
+            className="w-full bg-lq-surface hover:bg-lq-surface-2 border border-lq-line text-lq-gold py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer text-center block whitespace-nowrap mt-3 uppercase tracking-wider duration-200"
           >
             Reset Portfolio
           </button>
@@ -155,14 +158,19 @@ export default function PortfolioTab({ tickers, portfolio, onSelectTicker, onCle
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* Growth Line Chart (Bento 1) */}
-        <div className="lg:col-span-8 bg-[#050505] border border-white/10 p-6 rounded-2xl shadow-xl flex flex-col gap-4">
+        <div className="lg:col-span-8 lq-panel p-6  shadow-xl flex flex-col gap-4">
           <div className="flex justify-between items-center select-none mb-2">
-            <h3 className="font-serif text-sm font-light tracking-wide text-[#F2F2F2] flex items-center gap-2">
-              <BarChart2 className="w-4 h-4 text-[#D4AF37]" /> NAV Performance Curve (30D)
+            <h3 className="font-serif text-sm font-light tracking-wide text-lq-text flex items-center gap-2">
+              <BarChart2 className="w-4 h-4 text-lq-gold" /> Equity curve (last 30 days)
             </h3>
-            <span className="text-[8px] text-[#D4AF37] font-mono font-bold tracking-[0.15em] uppercase">USD HISTORIC EQUITIES</span>
+            <span className="text-[11px] text-lq-gold font-mono font-bold tracking-[0.15em] uppercase">Recorded on this device</span>
           </div>
 
+          {growthCurve.length < 2 && (
+            <p className="text-[12px] text-lq-muted m-0">
+              Your equity curve starts today. A point is recorded each day you open the paper portfolio.
+            </p>
+          )}
           <div className="h-[210px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={growthCurve} margin={{ top: 10, right: 10, left: -25, bottom: 5 }}>
@@ -186,10 +194,10 @@ export default function PortfolioTab({ tickers, portfolio, onSelectTicker, onCle
         </div>
 
         {/* Sector Allocation card (Bento 2) */}
-        <div className="lg:col-span-4 bg-[#050505] border border-white/10 p-6 rounded-2xl shadow-xl flex flex-col justify-between">
+        <div className="lg:col-span-4 lq-panel p-6  shadow-xl flex flex-col justify-between">
           <div className="flex justify-between items-center select-none mb-4">
-            <h3 className="font-serif text-sm font-light tracking-wide text-[#F2F2F2] flex items-center gap-2">
-              <PieIcon className="w-4 h-4 text-[#D4AF37]" /> Sector Allocations
+            <h3 className="font-serif text-sm font-light tracking-wide text-lq-text flex items-center gap-2">
+              <PieIcon className="w-4 h-4 text-lq-gold" /> Sector Allocations
             </h3>
           </div>
 
@@ -219,23 +227,23 @@ export default function PortfolioTab({ tickers, portfolio, onSelectTicker, onCle
             
             {/* Center percentage watermark labels */}
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="font-mono text-[8px] text-white/40 uppercase tracking-[0.16em]">allocated</span>
-              <span className="font-sans text-lg font-light text-[#F2F2F2] mt-0.5">
+              <span className="font-mono text-[11px] text-lq-muted uppercase tracking-[0.16em]">allocated</span>
+              <span className="font-sans text-lg font-light text-lq-text mt-0.5">
                 {netPortfolioValue > 0 ? ((totalHoldingsValue / netPortfolioValue) * 100).toFixed(0) : 0}%
               </span>
             </div>
           </div>
 
           {/* Dynamic legends index */}
-          <div className="grid grid-cols-2 gap-2 mt-4 text-[9px] font-mono select-none">
+          <div className="grid grid-cols-2 gap-2 mt-4 text-[11px] font-mono select-none">
             {sectorData.map((entry, idx) => (
               <div key={entry.name} className="flex items-center gap-1.5">
                 <span 
                   className="w-2 h-2 rounded-full inline-block" 
                   style={{ backgroundColor: SECTOR_COLORS[idx % SECTOR_COLORS.length] }} 
                 />
-                <span className="text-white/45 font-semibold truncate max-w-[100px]">{entry.name}</span>
-                <span className="text-[#D4AF37] font-bold">({((entry.value / netPortfolioValue) * 100).toFixed(0)}%)</span>
+                <span className="text-lq-muted font-semibold truncate max-w-[100px]">{entry.name}</span>
+                <span className="text-lq-gold font-bold">({((entry.value / netPortfolioValue) * 100).toFixed(0)}%)</span>
               </div>
             ))}
           </div>
@@ -244,18 +252,18 @@ export default function PortfolioTab({ tickers, portfolio, onSelectTicker, onCle
       </div>
 
       {/* SECTION 3: DETAILED ACTIVE POSITIONS LISTING */}
-      <div className="bg-[#050505] border border-white/10 rounded-2xl overflow-hidden shadow-xl">
+      <div className="lq-panel  overflow-hidden shadow-xl">
         
-        <div className="p-4 border-b border-white/10 bg-black/60 select-none">
-          <h3 className="font-serif text-sm font-light tracking-wide text-[#F2F2F2] flex items-center gap-2">
-            <Activity className="w-4 h-4 text-[#D4AF37] animate-pulse" /> Active Positions Index
+        <div className="p-4 border-b border-lq-line bg-lq-bg-2/60 select-none">
+          <h3 className="font-serif text-sm font-light tracking-wide text-lq-text flex items-center gap-2">
+            <Activity className="w-4 h-4 text-lq-gold animate-pulse" /> Active Positions Index
           </h3>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse whitespace-nowrap">
-            <thead className="bg-[#020202] border-b border-white/10 select-none">
-              <tr className="font-mono text-[9px] tracking-[0.15em] text-white/45 uppercase font-bold">
+            <thead className="bg-lq-surface border-b border-lq-line select-none">
+              <tr className="font-mono text-[11px] tracking-[0.15em] text-lq-muted uppercase font-bold">
                 <th className="py-3.5 px-5 font-bold">Ticker</th>
                 <th className="py-3.5 px-5 font-bold">Company</th>
                 <th className="py-3.5 px-5 font-bold">Sector</th>
@@ -267,26 +275,26 @@ export default function PortfolioTab({ tickers, portfolio, onSelectTicker, onCle
               </tr>
             </thead>
             
-            <tbody className="divide-y divide-white/5 font-mono text-xs text-[#F2F2F2]/80">
+            <tbody className="divide-y divide-lq-line font-mono text-xs text-lq-text/80">
               {holdings.length > 0 ? (
                 holdings.map((h) => {
                   const gain = h.profitLoss >= 0;
                   return (
-                    <tr key={h.id} className="hover:bg-white/[0.02] transition-all duration-150 group">
+                    <tr key={h.id} className="hover:bg-lq-surface-2 transition-all duration-150 group">
                       <td 
                         onClick={() => onSelectTicker(h.id)} 
-                        className="py-3.5 px-5 font-black text-[#D4AF37] hover:underline cursor-pointer"
+                        className="py-3.5 px-5 font-black text-lq-gold hover:underline cursor-pointer"
                       >
                         {h.id}
                       </td>
-                      <td className="py-3.5 px-5 text-[#F2F2F2]/60 max-w-[190px] truncate">{h.name}</td>
-                      <td className="py-3.5 px-5 text-white/40 text-[10px]">{h.sector}</td>
-                      <td className="py-3.5 px-5 text-[#F2F2F2]/60">${h.avgCost.toFixed(2)}</td>
-                      <td className="py-3.5 px-5 text-[#F2F2F2]/60">${h.currentPrice.toFixed(2)}</td>
-                      <td className="py-3.5 px-5 text-[#F2F2F2] font-semibold">${h.currentValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td className="py-3.5 px-5 text-lq-text/60 max-w-[190px] truncate">{h.name}</td>
+                      <td className="py-3.5 px-5 text-lq-muted text-[11px]">{h.sector}</td>
+                      <td className="py-3.5 px-5 text-lq-text/60">${h.avgCost.toFixed(2)}</td>
+                      <td className="py-3.5 px-5 text-lq-text/60">${h.currentPrice.toFixed(2)}</td>
+                      <td className="py-3.5 px-5 text-lq-text font-semibold">${h.currentValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                       <td className="py-3.5 px-5">
-                        <span className={`px-2 py-0.5 rounded-sm inline-flex items-center text-[10px] font-bold ${
-                          gain ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"
+                        <span className={`px-2 py-0.5 rounded-sm inline-flex items-center text-[11px] font-bold ${
+                          gain ? "bg-lq-up/10 text-lq-up" : "bg-lq-down/10 text-lq-down"
                         }`}>
                           {gain ? "+" : ""}${h.profitLoss.toLocaleString(undefined, { maximumFractionDigits: 1 })} ({gain ? "+" : ""}{h.profitLossPercent.toFixed(1)}%)
                         </span>
@@ -298,7 +306,7 @@ export default function PortfolioTab({ tickers, portfolio, onSelectTicker, onCle
                             onSelectTicker(h.id);
                             onAlertMessage?.(`Directed Terminal focus to live chart: ${h.id}`);
                           }}
-                          className="text-[#D4AF37]/60 hover:text-[#D4AF37] hover:underline transition-colors py-1 cursor-pointer"
+                          className="text-lq-gold/60 hover:text-lq-gold hover:underline transition-colors py-1 cursor-pointer"
                           title="View Chart & Technical Indices"
                         >
                           Chart
@@ -309,7 +317,7 @@ export default function PortfolioTab({ tickers, portfolio, onSelectTicker, onCle
                 })
               ) : (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-white/30 font-serif text-xs">
+                  <td colSpan={8} className="py-12 text-center text-lq-muted font-serif text-xs">
                     No active positions currently assigned. Transmit limit trades in the **Charts** tab.
                   </td>
                 </tr>
@@ -320,18 +328,10 @@ export default function PortfolioTab({ tickers, portfolio, onSelectTicker, onCle
 
       </div>
 
-      {/* SECTION 4: INSTITUTIONAL RATIOS WATERMARK */}
-      <div className="bg-[#030303] p-4 rounded-xl border border-white/5 font-mono text-[9px] tracking-wide text-white/30 flex flex-wrap gap-[6px] justify-between shadow-inner select-none pointer-events-none mt-2">
-        <span>Alpha rating (Simulated Vs SPY): +1.42%</span>
-        <span className="opacity-10 border-r border-[#fff] h-3 hidden sm:inline"></span>
-        <span>Corporate beta Coefficient: 1.08</span>
-        <span className="opacity-15 border-r border-[#fff] h-3 hidden sm:inline"></span>
-        <span>Sharpe Optimization Ratio: 1.84</span>
-        <span className="opacity-15 border-r border-[#fff] h-3 hidden sm:inline"></span>
-        <span>Treynor volatility indicator index: 14.12</span>
-        <span className="opacity-15 border-r border-[#fff] h-3 hidden sm:inline"></span>
-        <span>Sortino Downside deviation index: 2.15</span>
-      </div>
+      <p className="lq-card p-4 text-[12px] text-lq-muted m-0 mt-2">
+        Paper portfolio: positions, cash and returns are simulated with virtual money at delayed prices. Nothing is
+        sent to a broker. Risk ratios such as Sharpe and beta appear here once enough daily equity history is recorded.
+      </p>
 
     </div>
   );

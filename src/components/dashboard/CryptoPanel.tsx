@@ -40,7 +40,7 @@ export default function CryptoPanel() {
       ) : live.length === 0 ? (
         <Empty>Crypto prices are unavailable right now.</Empty>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
+        <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr] min-w-0">
           <div className="flex flex-col gap-2">
             {live.map((c) => (
               <button
@@ -65,7 +65,7 @@ export default function CryptoPanel() {
             ))}
           </div>
           {sel && (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 min-w-0">
               <div className="lq-card p-4 flex flex-col gap-2">
                 <span className="lq-lbl">{sel.name} · 30 days</span>
                 <Sparkline values={sel.spark ?? []} width={320} height={90} label={`${sel.name} 30-day price trend`} />

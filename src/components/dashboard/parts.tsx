@@ -78,6 +78,7 @@ export function Sparkline({
       width={width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
+      style={{ maxWidth: "100%", height: "auto" }}
       role={label ? "img" : undefined}
       aria-label={label}
       aria-hidden={label ? undefined : true}
