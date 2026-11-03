@@ -36,8 +36,9 @@ export default function WormholeGate({ reduced }: { reduced: boolean }) {
 
   async function goIn() {
     setStatus("warping");
-    await tunnel.current?.warp(1200);
-    navigate("/app/dashboard");
+    // Ignition plays here; Freefall, Emergence and Arrival play in the terminal.
+    await tunnel.current?.warp(400);
+    navigate("/app/dashboard", { state: { via: "wormhole" } });
   }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {

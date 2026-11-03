@@ -2,7 +2,7 @@ import { startLoop, Loop } from "./loop";
 
 export interface Wormhole extends Loop {
   setSpeed: (speed: number) => void;
-  /** Accelerate into the tunnel and flash; resolves when the animation ends. */
+  /** Accelerate into the tunnel with a soft warm swell; resolves when the animation ends. */
   warp: (ms: number) => Promise<void>;
 }
 
@@ -49,7 +49,7 @@ export function wormhole(canvas: HTMLCanvasElement, opts: { animate: boolean }):
         const r = base / ring.z;
         if (r > Math.max(width, height) * 1.2) continue;
         const alpha = Math.min(1, (1 - ring.z) * 1.2) * 0.55;
-        const colours = ["212,175,55", "245,230,202", "240,145,63"];
+        const colours = ["212,175,55", "245,230,202", "201,162,240"];
         ctx.strokeStyle = `rgba(${colours[ring.hue]},${alpha})`;
         ctx.lineWidth = Math.max(0.5, 2.2 * (1 - ring.z));
         ctx.beginPath();
@@ -57,8 +57,9 @@ export function wormhole(canvas: HTMLCanvasElement, opts: { animate: boolean }):
         ctx.stroke();
       }
 
+      // A soft warm swell rather than a hard flash; the terminal picks up from here.
       if (flash > 0) {
-        ctx.fillStyle = `rgba(255,248,230,${flash})`;
+        ctx.fillStyle = `rgba(245,230,202,${flash * 0.35})`;
         ctx.fillRect(0, 0, width, height);
       }
     },
