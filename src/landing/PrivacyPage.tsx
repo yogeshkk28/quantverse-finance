@@ -12,7 +12,7 @@ import "./landing.css";
 
 const UPDATED = "3 November 2026";
 // Set these before launch. Lines that use them are hidden while they're empty.
-const PRIVACY_EMAIL = ""; // e.g. privacy@<domain>
+const PRIVACY_EMAIL = "privacy.luminaquant@gmail.com";
 const OPERATOR = ""; // legal name and registered address of the entity running Lumina Quant
 
 function Contact({ fallback = "." }: { fallback?: string }) {
