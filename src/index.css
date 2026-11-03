@@ -24,6 +24,12 @@
   animation-play-state: paused;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .animate-ticker-loop {
+    animation: none;
+  }
+}
+
 /* Hide scrollbar default utilities */
 ::-webkit-scrollbar {
   width: 6px;

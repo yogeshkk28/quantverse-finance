@@ -314,6 +314,11 @@
   }
 }
 
+/* While the wormhole plays, panels wait at their start state. */
+.lq-hold .lq-rise {
+  animation-play-state: paused;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lq-cosmos__rings,
   .lq-rise {
