@@ -5,6 +5,8 @@
  * `id` is what the UI shows and routes use. `symbol` is the Yahoo Finance symbol
  * (NSE stocks carry the ".NS" suffix).
  */
+import { findScreenerEntry } from "./screenerUniverse";
+
 export type Market = "US" | "IN";
 
 export interface UniverseEntry {
@@ -54,5 +56,6 @@ export const CURRENCY: Record<Market, string> = { US: "$", IN: "₹" };
 
 export function findEntry(idOrSymbol: string): UniverseEntry | undefined {
   const key = idOrSymbol.toUpperCase();
-  return UNIVERSE.find((u) => u.id === key || u.symbol === key);
+  // Fall back to the screener's larger list so any screened stock can be charted.
+  return UNIVERSE.find((u) => u.id === key || u.symbol === key) ?? findScreenerEntry(key);
 }

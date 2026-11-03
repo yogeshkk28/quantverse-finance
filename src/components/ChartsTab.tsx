@@ -200,7 +200,7 @@ export default function ChartsTab({ tickers, activeTickerId, onSelectTicker, onA
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl md:text-2xl font-serif font-light text-[#F2F2F2] m-0 tracking-wide">{activeTicker.id}</h1>
-                <span className="bg-[#D4AF37]/5 border border-[#D4AF37]/25 rounded px-2 py-0.5 text-[8px] font-mono text-[#D4AF37] font-bold tracking-widest uppercase">NASDAQ</span>
+                <span className="bg-[#D4AF37]/5 border border-[#D4AF37]/25 rounded px-2 py-0.5 text-[8px] font-mono text-[#D4AF37] font-bold tracking-widest uppercase">{activeTicker.market === "IN" ? "NSE" : "US"}</span>
               </div>
               <p className="text-xs text-white/50 font-medium mt-1">{activeTicker.name}</p>
             </div>
