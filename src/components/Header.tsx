@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ActiveTab } from "../types";
-import { Bell, User, Cpu, LogOut, Trash2, TrendingUp, Filter, LineChart, PieChart, Activity } from "lucide-react";
+import { Bell, LogOut, Trash2, Menu, X } from "lucide-react";
+import MarketStatusPill from "./MarketStatusPill";
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -10,84 +11,98 @@ interface HeaderProps {
   onNotificationsClick?: () => void;
 }
 
+const TABS: Array<{ id: ActiveTab; label: string }> = [
+  { id: "dashboard", label: "Home" },
+  { id: "screener", label: "Screener" },
+  { id: "charts", label: "Charts" },
+  { id: "portfolio", label: "Portfolio" },
+  { id: "signals", label: "Correlation Web" },
+];
+
 export default function Header({ activeTab, setActiveTab, onNotificationsClick }: HeaderProps) {
   const { user, leave, forget } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  const tabs: Array<{ id: ActiveTab; label: string; icon: React.ReactNode }> = [
-    { id: "dashboard", label: "Dashboard", icon: <TrendingUp className="w-3.5 h-3.5" /> },
-    { id: "screener", label: "Screener", icon: <Filter className="w-3.5 h-3.5" /> },
-    { id: "charts", label: "Charts", icon: <LineChart className="w-3.5 h-3.5" /> },
-    { id: "portfolio", label: "Portfolio", icon: <PieChart className="w-3.5 h-3.5" /> },
-    { id: "signals", label: "Correlation Web", icon: <Activity className="w-3.5 h-3.5" /> },
-  ];
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [menuOpen]);
+
+  const go = (tab: ActiveTab) => {
+    setActiveTab(tab);
+    setNavOpen(false);
+  };
 
   return (
-    <header className="bg-[#050505] border-b border-white/10 sticky top-0 z-50 transition-all duration-300">
-      <div className="flex h-20 items-center justify-between px-8 w-full max-w-[1600px] mx-auto gap-4">
-        {/* Brand Logo & Name under Sophisticated Dark template style */}
-        <div 
-          onClick={() => setActiveTab("dashboard")} 
-          className="flex items-center gap-4 cursor-pointer select-none group"
+    <header className="sticky top-0 z-50 border-b border-lq-line bg-[rgba(7,8,12,0.86)] backdrop-blur-md">
+      <div className="flex h-16 items-center gap-4 md:gap-8 px-4 md:px-8 w-full max-w-[1600px] mx-auto">
+        <button
+          type="button"
+          onClick={() => go("dashboard")}
+          className="font-serif text-[26px] font-medium leading-none text-lq-gold hover:text-lq-gold-soft transition-colors whitespace-nowrap"
         >
-          <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#D4AF37] to-[#F5E6CA] flex items-center justify-center border border-white/20 transition-all duration-500 group-hover:rotate-12 group-hover:scale-105">
-            <Cpu className="w-4 h-4 text-black" />
-          </div>
-          <span className="text-xl font-bold tracking-[0.25em] uppercase italic font-serif text-[#F2F2F2] transition-colors duration-300 group-hover:text-[#D4AF37]">
-            Lumina Quant
-          </span>
-        </div>
+          Lumina Quant
+        </button>
 
-        {/* Desktop Navigation - matching editorial spacing */}
-        <nav className="hidden md:flex items-center gap-6">
-          {tabs.map((tab) => {
-            const isActive = activeTab === tab.id;
+        <nav aria-label="Primary" className="hidden lg:flex items-center gap-1">
+          {TABS.map((tab) => {
+            const on = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 py-2 border-b transition-all duration-300 text-[11px] uppercase tracking-[0.2em] font-medium ${
-                  isActive
-                    ? "text-[#F2F2F2] border-[#D4AF37] opacity-100"
-                    : "text-white/50 border-transparent hover:text-white hover:opacity-80"
+                type="button"
+                onClick={() => go(tab.id)}
+                aria-current={on ? "page" : undefined}
+                className={`relative px-3 py-2 text-[14px] transition-colors ${
+                  on ? "text-lq-text" : "text-lq-muted hover:text-lq-text"
                 }`}
               >
-                {tab.icon}
-                <span>{tab.label}</span>
+                {tab.label}
+                {on && (
+                  <span className="absolute left-3 right-3 -bottom-[13px] h-[2px] rounded-full bg-lq-gold shadow-[0_0_10px_rgba(212,175,55,0.6)]" />
+                )}
               </button>
             );
           })}
         </nav>
 
-        {/* Indicators and Alerts */}
-        <div className="flex items-center gap-4">
-          {/* Notifications button with clean neon green status pulse */}
+        <div className="ml-auto flex items-center gap-2 md:gap-3">
+          <span className="hidden md:inline lq-tag" title="Every trade here is simulated with virtual money">
+            Paper trading
+          </span>
+          <MarketStatusPill />
+
           <button
+            type="button"
             onClick={onNotificationsClick}
-            className="text-white/60 hover:text-[#D4AF37] hover:bg-white/5 p-2 rounded-full transition-all duration-300 relative"
-            title="System Alerts"
+            aria-label="Activity log"
+            className="relative w-10 h-10 inline-flex items-center justify-center rounded-full text-lq-muted hover:text-lq-gold hover:bg-lq-surface-2 transition-colors"
           >
             <Bell className="w-4 h-4" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
           </button>
 
-          {/* Account menu */}
-          <div className="relative">
+          <div className="relative" ref={menuRef}>
             <button
               type="button"
               onClick={() => setMenuOpen((o) => !o)}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
               aria-label="Account"
-              className="w-9 h-9 rounded-full border border-white/20 flex items-center justify-center hover:border-[#D4AF37]/60 transition-colors"
+              className="w-10 h-10 rounded-full border border-lq-line-2 flex items-center justify-center hover:border-lq-gold-line transition-colors"
               title={user?.email}
             >
-              <div className="w-5.5 h-5.5 rounded-full bg-gradient-to-tr from-[#D4AF37] to-[#F5E6CA]"></div>
+              <span className="w-5 h-5 rounded-full" style={{ background: "var(--lq-gold-grad)" }} />
             </button>
             {menuOpen && (
-              <div role="menu" className="absolute right-0 mt-2 w-60 bg-[#0b0b0b] border border-white/10 rounded-xl p-2 shadow-[0_10px_25px_rgba(0,0,0,0.8)]">
-                <p className="px-3 py-2 text-[11px] text-white/45 truncate">{user?.email}</p>
+              <div role="menu" className="lq-panel absolute right-0 mt-2 w-60 p-2">
+                <p className="px-3 py-2 text-[12px] text-lq-muted truncate m-0">{user?.email}</p>
                 <button
                   type="button"
                   role="menuitem"
@@ -95,7 +110,7 @@ export default function Header({ activeTab, setActiveTab, onNotificationsClick }
                     await leave();
                     navigate("/");
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white/80 hover:bg-white/5 hover:text-[#D4AF37]"
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] text-lq-text-2 hover:bg-lq-surface-2 hover:text-lq-gold"
                 >
                   <LogOut className="w-3.5 h-3.5" /> Sign out
                 </button>
@@ -106,22 +121,51 @@ export default function Header({ activeTab, setActiveTab, onNotificationsClick }
                     if (!window.confirm("Delete your email and sign out everywhere? This can't be undone.")) return;
                     if (await forget()) navigate("/");
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white/50 hover:bg-white/5 hover:text-red-400"
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] text-lq-muted hover:bg-lq-surface-2 hover:text-lq-down"
                 >
                   <Trash2 className="w-3.5 h-3.5" /> Delete my data
                 </button>
                 <Link
                   to="/privacy"
                   role="menuitem"
-                  className="block px-3 py-2 rounded-lg text-[11px] text-white/40 hover:bg-white/5 hover:text-white/70"
+                  className="block px-3 py-2 rounded-lg text-[12px] text-lq-muted hover:bg-lq-surface-2 hover:text-lq-text"
                 >
                   Privacy policy
                 </Link>
               </div>
             )}
           </div>
+
+          <button
+            type="button"
+            className="lg:hidden w-10 h-10 inline-flex items-center justify-center rounded-full text-lq-text-2 hover:bg-lq-surface-2"
+            aria-label={navOpen ? "Close menu" : "Open menu"}
+            aria-expanded={navOpen}
+            aria-controls="lq-mobile-nav"
+            onClick={() => setNavOpen((o) => !o)}
+          >
+            {navOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
         </div>
       </div>
+
+      {navOpen && (
+        <nav id="lq-mobile-nav" aria-label="Primary" className="lg:hidden border-t border-lq-line px-4 py-3 flex flex-col gap-1">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => go(tab.id)}
+              aria-current={activeTab === tab.id ? "page" : undefined}
+              className={`text-left px-3 py-3 rounded-lg text-[15px] ${
+                activeTab === tab.id ? "bg-lq-surface-2 text-lq-gold" : "text-lq-text-2 hover:bg-lq-surface-2"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      )}
     </header>
   );
 }
