@@ -14,7 +14,6 @@ import Cosmos from "./theme/Cosmos";
 import WormholeTransition from "./app/WormholeTransition";
 import { useReducedMotion } from "./landing/hooks";
 
-const WARP_SEEN_KEY = "lq_wormhole_seen";
 
 const TABS: ActiveTab[] = ["dashboard", "screener", "charts", "portfolio", "signals"];
 
@@ -27,19 +26,10 @@ export default function App() {
   const location = useLocation();
   const reduced = useReducedMotion();
 
-  // The wormhole jump plays when arriving from the landing gate (or with ?warp).
-  // Return visitors go straight to Arrival.
-  const [warping, setWarping] = useState(() => {
-    const via = (location.state as { via?: string } | null)?.via === "wormhole";
-    const forced = new URLSearchParams(location.search).has("warp");
-    if (forced) return true;
-    if (!via) return false;
-    try {
-      return localStorage.getItem(WARP_SEEN_KEY) !== "1";
-    } catch {
-      return true;
-    }
-  });
+  // The wormhole jump plays every time someone enters from the landing gate
+  // (or with ?warp on any /app URL).
+  const [fromGate] = useState(() => (location.state as { via?: string } | null)?.via === "wormhole");
+  const [warping, setWarping] = useState(() => fromGate || new URLSearchParams(location.search).has("warp"));
   const [arrived, setArrived] = useState(!warping);
   // Arriving from the landing page keeps its scroll position, so start each view at the top.
   useEffect(() => {
@@ -211,12 +201,10 @@ export default function App() {
       {warping && (
         <WormholeTransition
           reduced={reduced}
+          fromGate={fromGate}
           onArrive={() => setArrived(true)}
           onDone={() => {
             setWarping(false);
-            try {
-              localStorage.setItem(WARP_SEEN_KEY, "1");
-            } catch {}
             // Drop the router state so a refresh doesn't replay the jump.
             navigate(location.pathname, { replace: true, state: null });
           }}

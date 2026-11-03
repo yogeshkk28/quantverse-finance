@@ -24,7 +24,7 @@ Every colour, font and shared part lives in one file, `src/theme/event-horizon.c
 and shared classes (`.lq-panel`, `.lq-card`, `.lq-chip`, `.lq-btn`, `.lq-lbl`, `.lq-table`). Gold marks what you can
 act on, violet is atmosphere only, green and red only show price direction. Add a token there before using a new colour.
 
-Arriving from the landing gate plays the wormhole transition (`src/app/WormholeTransition.tsx`) once per browser;
+Arriving from the landing gate plays the wormhole transition (`src/app/WormholeTransition.tsx`) every time;
 add `?warp` to any `/app` URL to replay it. Reduced-motion users get a short crossfade.
 
 ## How the Correlation Web works

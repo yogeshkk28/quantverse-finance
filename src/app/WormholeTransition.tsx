@@ -32,10 +32,13 @@ const VIOLET: [number, number, number] = [143, 123, 255];
 
 export default function WormholeTransition({
   reduced,
+  fromGate = false,
   onArrive,
   onDone,
 }: {
   reduced: boolean;
+  /** The landing gate already played Ignition and ended on a white flash: start in Freefall, out of that light. */
+  fromGate?: boolean;
   /** Called once when Arrival starts (or straight away on skip / reduced motion). */
   onArrive: () => void;
   onDone: () => void;
@@ -101,10 +104,10 @@ export default function WormholeTransition({
       z: 0.25 + ((i * 7) % 10) / 12,
     }));
 
-    const start = performance.now();
+    const start = performance.now() - (fromGate ? T_IGNITE : 0);
     let last = start;
     let raf = 0;
-    const skipTimer = window.setTimeout(() => setShowSkip(true), 500);
+    const skipTimer = window.setTimeout(() => setShowSkip(true), fromGate ? 300 : 500);
 
     const draw = (now: number) => {
       const t = now - start;
@@ -174,6 +177,12 @@ export default function WormholeTransition({
         }
       }
 
+      // Coming from the gate: fade out of the landing page's white flash.
+      if (fromGate && t < T_IGNITE + 350) {
+        ctx.fillStyle = `rgba(255,248,230,${1 - (t - T_IGNITE) / 350})`;
+        ctx.fillRect(0, 0, w, h);
+      }
+
       // 03 Emergence and 04 Arrival: a warm bloom that swells, then fades out.
       if (t >= T_FREEFALL) {
         const up = ease(clamp01((t - T_FREEFALL) / (T_EMERGE - T_FREEFALL)));
@@ -218,7 +227,7 @@ export default function WormholeTransition({
       className="fixed inset-0 z-[100]"
       style={{
         opacity: fade,
-        background: reduced ? "var(--lq-bg)" : "#050508",
+        background: reduced ? "var(--lq-bg)" : fromGate ? "#fff8e6" : "#050508",
         transition: reduced ? "opacity 300ms ease" : undefined,
         pointerEvents: fade < 0.3 ? "none" : "auto",
       }}
