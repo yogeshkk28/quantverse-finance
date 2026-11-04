@@ -15,6 +15,7 @@ import { cached } from "./marketData";
 import { Basis, dynamics, pair, structure } from "./correlationLab";
 import { Estimator } from "./quant/estimators";
 import { getScreener } from "./screener";
+import { ChartInterval, ChartRange, INTERVALS, getCandles } from "./candles";
 
 const router = Router();
 
@@ -84,6 +85,24 @@ router.get("/api/history/:symbol", async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error(`[API] Failed to get history for ${symbol}:`, err);
     res.status(500).json({ error: err.message || "Failed to load live histories" });
+  }
+});
+
+/**
+ * GET /api/candles/:symbol?interval=1m|5m|15m|30m|1h|4h|1D|1W|1M&range=1d|5d|1mo|...|max
+ * Unsmoothed OHLCV bars for the chart page. `symbol` is our id (NVDA, MRF, RELIANCE)
+ * or a raw Yahoo symbol (^NSEI, GC=F, BTC-USD, USDINR=X). source: "sample" when offline.
+ */
+router.get("/api/candles/:symbol", async (req: Request, res: Response) => {
+  const id = decodeURIComponent(req.params.symbol || "").slice(0, 32);
+  const interval = (String(req.query.interval || "1D") as ChartInterval);
+  if (!id) return res.status(400).json({ error: "Missing symbol" });
+  if (!(interval in INTERVALS)) return res.status(400).json({ error: `Unknown interval ${interval}` });
+  try {
+    res.json(await getCandles(id, interval, req.query.range ? (String(req.query.range) as ChartRange) : undefined));
+  } catch (err: any) {
+    console.error(`[API] Candles failed for ${id}:`, err);
+    res.status(502).json({ error: "Could not load candles." });
   }
 });
 

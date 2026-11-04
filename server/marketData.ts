@@ -74,15 +74,17 @@ async function withYahooSlot<T>(fn: () => Promise<T>): Promise<T> {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function fetchYahooJson(symbol: string, range: string): Promise<any | null> {
-  const path = `/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${range}`;
+export async function fetchYahooJson(symbol: string, range: string, interval = "1d"): Promise<any | null> {
+  const path = `/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}&includePrePost=false`;
   // One retry on the second Yahoo host after a short pause handles most 429s.
   for (const [attempt, host] of ["query1", "query2"].entries()) {
     if (attempt > 0) await sleep(1500);
     try {
       const response = await withYahooSlot(() => fetch(`https://${host}.finance.yahoo.com${path}`, { headers: YF_HEADERS }));
       if (response.ok) return await response.json();
-      console.warn(`[Yahoo] ${response.status} for ${symbol} (${range}) on ${host}`);
+      console.warn(`[Yahoo] ${response.status} for ${symbol} (${range}, ${interval}) on ${host}`);
+      // 404 means Yahoo does not know the symbol; asking the other host won't help.
+      if (response.status === 404) return null;
     } catch (err) {
       console.warn(`[Yahoo] Request failed for ${symbol} (${range}) on ${host}:`, err);
     }
