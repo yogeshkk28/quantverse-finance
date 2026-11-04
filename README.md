@@ -53,7 +53,10 @@ All of this describes the past and is not a forecast.
 | P/E, ROE, market cap | Financial Modeling Prep (`FINANCIAL_MODELING_API`) | US only on the free plan; otherwise sample values marked `*` |
 | Macro strip | FRED (`FRED_API`) | CPI and GDP shown as year-over-year % |
 | Fear & Greed | Computed in `server/fearGreed.ts` | Momentum, volatility, safe-haven demand, breadth, strength, junk-bond spread |
-| News | NewsData.io (`NEWS_IO_API`) | |
+| Homepage news | Finnhub (`FINNHUB_API`), else NewsData.io (`NEWS_IO_API`) | `/api/market-news`; sample headlines are labelled as such |
+| Futures, forex, index cards | Yahoo Finance chart endpoint | `/api/futures`, `/api/forex`, `/api/index-cards`; delayed |
+| IPO calendar | Finnhub (US), NSE public site (India, best effort) | `/api/ipos`; shows "not available" instead of guessing |
+| Dossier widget | Computed in `server/homeMarkets.ts` | Returns, seasonals, technical summary, realised volatility, breadth over the tracked universe |
 | AI analysis | Gemini (`GEMINI_API_KEY`) | |
 
 The tracked stocks live in `server/universe.ts`. Add a symbol there and it appears everywhere.

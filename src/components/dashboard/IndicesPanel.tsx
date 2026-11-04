@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PanelHead, ChipGroup, Change, fmtNum } from "./parts";
+import { SeeAll } from "../home/ui";
 
 const INDICES = [
   { symbol: "^GSPC", label: "S&P 500" },
+  { symbol: "^IXIC", label: "Nasdaq" },
   { symbol: "^NDX", label: "Nasdaq 100" },
   { symbol: "^DJI", label: "Dow Jones" },
   { symbol: "^NSEI", label: "Nifty 50" },
   { symbol: "^BSESN", label: "Sensex" },
+  { symbol: "^NSEBANK", label: "Nifty Bank" },
   { symbol: "^N225", label: "Nikkei 225" },
   { symbol: "^FTSE", label: "FTSE 100" },
   { symbol: "^GDAXI", label: "DAX" },
@@ -28,8 +31,7 @@ interface IndexChart {
   points?: { t: number; c: number }[];
 }
 
-export default function IndicesPanel({ onOpenCharts }: { onOpenCharts: () => void }) {
-  const [symbol, setSymbol] = useState<string>("^GSPC");
+export default function IndicesPanel({ symbol, onSymbol: setSymbol }: { symbol: string; onSymbol: (symbol: string) => void }) {
   const [range, setRange] = useState<Range>("3M");
   const [data, setData] = useState<IndexChart | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,15 +57,11 @@ export default function IndicesPanel({ onOpenCharts }: { onOpenCharts: () => voi
   const s = data?.stats;
 
   return (
-    <section className="lq-panel lq-rise p-5 md:p-6 flex flex-col gap-4 min-w-0" aria-labelledby="idx-h" style={{ "--lq-i": 1 } as React.CSSProperties}>
+    <section className="lq-panel lq-rise p-6 md:p-7 flex flex-col gap-5 min-w-0" aria-labelledby="idx-h" style={{ "--lq-i": 1 } as React.CSSProperties}>
       <PanelHead
         id="idx-h"
-        title="Major indices"
-        aside={
-          <button type="button" onClick={onOpenCharts} className="text-[13px] text-lq-gold hover:text-lq-gold-soft">
-            Open charts
-          </button>
-        }
+        title="Index chart"
+        aside={<SeeAll href="/app/markets/indices">All indices</SeeAll>}
       />
       <div role="group" aria-label="Index" className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
         {INDICES.map((i) => (
@@ -93,7 +91,7 @@ export default function IndicesPanel({ onOpenCharts }: { onOpenCharts: () => voi
         </div>
       </div>
 
-      <div className="h-[260px] -mx-2">
+      <div className="h-[340px] -mx-2">
         {points.length > 1 ? (
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
@@ -127,7 +125,7 @@ export default function IndicesPanel({ onOpenCharts }: { onOpenCharts: () => voi
                 labelFormatter={(t) => new Date(Number(t) * 1000).toLocaleDateString()}
                 formatter={(v: number) => [`${cur}${fmtNum(v)}`, "Close"]}
               />
-              <Area type="monotone" dataKey="c" stroke={stroke} strokeWidth={1.8} fill="url(#idxFill)" isAnimationActive={false} />
+              <Area type="linear" dataKey="c" stroke={stroke} strokeWidth={1.5} fill="url(#idxFill)" isAnimationActive={false} />
             </AreaChart>
           </ResponsiveContainer>
         ) : (

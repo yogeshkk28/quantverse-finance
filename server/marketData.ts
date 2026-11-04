@@ -94,7 +94,7 @@ async function fetchYahooJson(symbol: string, range: string): Promise<any | null
 const yahooFailedUntil = new Map<string, number>();
 
 /** Daily candles plus the latest price. Cached for 5 minutes per symbol and range. */
-export async function getYahooChart(symbol: string, range: "5d" | "3mo" | "1y" | "2y" = "1y"): Promise<Chart | null> {
+export async function getYahooChart(symbol: string, range: "5d" | "3mo" | "1y" | "2y" | "5y" = "1y"): Promise<Chart | null> {
   const key = `yahoo:${symbol}:${range}`;
   if ((yahooFailedUntil.get(key) ?? 0) > Date.now()) return null;
   try {

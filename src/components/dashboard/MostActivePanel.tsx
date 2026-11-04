@@ -51,7 +51,7 @@ export default function MostActivePanel({ onSelect, onOpenScreener }: { onSelect
   }, [rows, list, rank]);
 
   return (
-    <section className="lq-panel lq-rise p-5 md:p-6 flex flex-col gap-4 min-w-0" aria-labelledby="vol-h" style={{ "--lq-i": 4 } as React.CSSProperties}>
+    <section className="lq-panel lq-rise p-6 md:p-7 flex flex-col gap-5 min-w-0" aria-labelledby="vol-h" style={{ "--lq-i": 4 } as React.CSSProperties}>
       <PanelHead
         id="vol-h"
         title="Highest volume"

@@ -11,10 +11,12 @@ const router = Router();
 
 export const MAJOR_INDICES = [
   { symbol: "^GSPC", label: "S&P 500", currency: "$" },
+  { symbol: "^IXIC", label: "Nasdaq", currency: "$" },
   { symbol: "^NDX", label: "Nasdaq 100", currency: "$" },
   { symbol: "^DJI", label: "Dow Jones", currency: "$" },
   { symbol: "^NSEI", label: "Nifty 50", currency: "₹" },
   { symbol: "^BSESN", label: "Sensex", currency: "₹" },
+  { symbol: "^NSEBANK", label: "Nifty Bank", currency: "₹" },
   { symbol: "^N225", label: "Nikkei 225", currency: "¥" },
   { symbol: "^FTSE", label: "FTSE 100", currency: "£" },
   { symbol: "^GDAXI", label: "DAX", currency: "€" },
@@ -27,6 +29,9 @@ const COINS = [
   { symbol: "SOL-USD", id: "SOL", name: "Solana" },
   { symbol: "BNB-USD", id: "BNB", name: "BNB" },
   { symbol: "XRP-USD", id: "XRP", name: "XRP" },
+  { symbol: "DOGE-USD", id: "DOGE", name: "Dogecoin" },
+  { symbol: "ADA-USD", id: "ADA", name: "Cardano" },
+  { symbol: "AVAX-USD", id: "AVAX", name: "Avalanche" },
 ];
 
 /** Range chip → Yahoo range to fetch and how many trailing sessions to keep. */
@@ -81,7 +86,7 @@ router.get("/api/index-chart", async (req: Request, res: Response) => {
   });
 });
 
-// GET /api/crypto: five large coins with a 30-day sparkline.
+// GET /api/crypto: eight large coins with a 30-day sparkline.
 router.get("/api/crypto", async (_req: Request, res: Response) => {
   const coins = await cached("dash:crypto", 60_000, () =>
     mapLimit(COINS, 3, async (coin) => {

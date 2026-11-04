@@ -3,15 +3,18 @@ import { ActiveTab, Ticker } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { useMarketSummary } from "./MarketStatusPill";
 import { formatWait } from "../landing/marketHours";
-import MiniCorrelationWeb from "./MiniCorrelationWeb";
 import IndicesPanel from "./dashboard/IndicesPanel";
 import { SentimentPanel, MacroPanel } from "./dashboard/SentimentPanel";
 import MostActivePanel from "./dashboard/MostActivePanel";
-import CryptoPanel from "./dashboard/CryptoPanel";
-import StoriesPanel from "./dashboard/StoriesPanel";
 import IdeasPanel from "./dashboard/IdeasPanel";
 import { PaperAccount, Watchlist, SignalsPanel } from "./dashboard/Rail";
-import { PanelHead, ChipGroup } from "./dashboard/parts";
+import IndexDeck from "./home/IndexDeck";
+import FuturesPanel from "./home/FuturesPanel";
+import ForexPanel from "./home/ForexPanel";
+import CryptoGrid from "./home/CryptoGrid";
+import NewsPanel, { useNews } from "./home/NewsPanel";
+import IpoPanel from "./home/IpoPanel";
+import Dossier from "./home/Dossier";
 
 interface DashboardTabProps {
   tickers: Ticker[];
@@ -30,36 +33,45 @@ function nameFrom(email?: string) {
   return local ? local[0].toUpperCase() + local.slice(1) : "";
 }
 
-const IPO_STAGES = ["Upcoming", "Open now", "Recently listed"] as const;
-
-function IpoPanel() {
-  const [stage, setStage] = React.useState<(typeof IPO_STAGES)[number]>("Upcoming");
-  return (
-    <section id="ipo" className="lq-panel lq-rise p-5 md:p-6 flex flex-col gap-4" aria-labelledby="ipo-h" style={{ "--lq-i": 5 } as React.CSSProperties}>
-      <PanelHead id="ipo-h" title="IPO tracker" aside={<ChipGroup label="IPO stage" options={IPO_STAGES} value={stage} onChange={setStage} />} />
-      <div className="lq-card p-5 flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex-1">
-          <p className="m-0 text-[14px] text-lq-text">The IPO calendar feed isn't connected yet.</p>
-          <p className="m-0 mt-1 text-[12px] text-lq-muted">
-            When it is, this shows {stage.toLowerCase()} issues for US, NSE mainboard and SME with price band, size, lot and
-            subscription. Nothing is shown until real data is available.
-          </p>
-        </div>
-        <span className="lq-tag self-start sm:self-center">Coming soon</span>
-      </div>
-    </section>
-  );
-}
-
-/** Home: the Event Horizon dashboard. */
+/**
+ * Home: the Event Horizon dashboard.
+ *
+ * Top to bottom: benchmark index cards, the index chart and commodity futures
+ * beside the instrument dossier, market movers, forex and crypto, news and IPOs,
+ * then sentiment and the paper workspace. Clicking any index, future, pair or
+ * coin puts it in the dossier.
+ */
 export default function DashboardTab({ tickers, portfolio, onSelectTicker, onOpenTab }: DashboardTabProps) {
   const { user } = useAuth();
   const { now, live, next, total } = useMarketSummary();
   const name = nameFrom(user?.email);
   const symbols = tickers.length ? tickers.map((t) => t.id) : ["NVDA", "AAPL", "RELIANCE", "TCS"];
+  const news = useNews();
+
+  const [chartSymbol, setChartSymbol] = React.useState("^GSPC");
+  const [focus, setFocus] = React.useState("^GSPC");
+  const dossierRef = React.useRef<HTMLDivElement>(null);
+  const held = React.useMemo(
+    () => new Set(Object.entries(portfolio.positions).filter(([, p]) => p.qty > 0).map(([id]) => id)),
+    [portfolio.positions]
+  );
+
+  const focusOn = (symbol: string) => {
+    setFocus(symbol);
+    // Below the wide layout the dossier sits under the chart; bring it into view.
+    const el = dossierRef.current;
+    if (el && window.innerWidth < 1280) {
+      const r = el.getBoundingClientRect();
+      if (r.top > window.innerHeight || r.bottom < 0) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+  const pickIndex = (symbol: string) => {
+    setChartSymbol(symbol);
+    focusOn(symbol);
+  };
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto px-4 md:px-8 py-8 flex flex-col gap-6">
+    <div className="w-full max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-10 py-10 flex flex-col gap-10">
       <div className="lq-rise flex flex-col gap-2" style={{ "--lq-i": 0 } as React.CSSProperties}>
         <h1 className="lq-h1 lq-h1--grad">
           {greeting(now)}
@@ -77,31 +89,42 @@ export default function DashboardTab({ tickers, portfolio, onSelectTicker, onOpe
         </p>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
-        <IndicesPanel onOpenCharts={() => onOpenTab("charts")} />
-        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-1 content-start">
-          <SentimentPanel />
-          <MacroPanel />
+      <IndexDeck selected={chartSymbol} onSelect={pickIndex} />
+
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_440px]">
+        <div className="flex flex-col gap-8 min-w-0">
+          <IndicesPanel symbol={chartSymbol} onSymbol={pickIndex} />
+          <FuturesPanel held={held} focus={focus} onFocus={focusOn} />
+        </div>
+        <div ref={dossierRef} className="relative min-w-0 scroll-mt-24 xl:min-h-[720px]">
+          <div className="xl:absolute xl:inset-0 flex flex-col">
+            <Dossier symbol={focus} news={news?.items ?? []} />
+          </div>
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)] items-start">
-        <div className="flex flex-col gap-6 min-w-0">
-          <MostActivePanel onSelect={onSelectTicker} onOpenScreener={() => onOpenTab("screener")} />
-          <CryptoPanel />
-          <StoriesPanel />
-          <IdeasPanel symbols={symbols} />
-          <IpoPanel />
-        </div>
-        <aside aria-label="Your workspace" className="grid gap-6 sm:grid-cols-2 xl:grid-cols-1 xl:sticky xl:top-24">
-          <PaperAccount portfolio={portfolio} tickers={tickers} onOpen={() => onOpenTab("portfolio")} />
-          <Watchlist tickers={tickers} onSelect={onSelectTicker} />
-          <SignalsPanel tickers={tickers} onSelect={onSelectTicker} />
-        </aside>
+      <MostActivePanel onSelect={onSelectTicker} onOpenScreener={() => onOpenTab("screener")} />
+
+      <div className="grid gap-8 lg:grid-cols-2 items-start">
+        <ForexPanel focus={focus} onFocus={focusOn} />
+        <CryptoGrid focus={focus} onFocus={focusOn} />
       </div>
 
-      <div className="lq-rise" style={{ "--lq-i": 8 } as React.CSSProperties}>
-        <MiniCorrelationWeb onOpen={() => onOpenTab("signals")} />
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] items-start">
+        <NewsPanel data={news} />
+        <IpoPanel />
+      </div>
+
+      <section aria-label="Sentiment and your workspace" className="grid gap-8 md:grid-cols-2 2xl:grid-cols-4 items-start">
+        <SentimentPanel />
+        <MacroPanel />
+        <PaperAccount portfolio={portfolio} tickers={tickers} onOpen={() => onOpenTab("portfolio")} />
+        <Watchlist tickers={tickers} onSelect={onSelectTicker} />
+      </section>
+
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] items-start">
+        <IdeasPanel symbols={symbols} />
+        <SignalsPanel tickers={tickers} onSelect={onSelectTicker} />
       </div>
     </div>
   );
