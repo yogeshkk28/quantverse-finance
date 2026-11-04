@@ -333,7 +333,8 @@ export default function ChartPage({ symbol: rawSymbol, tickers, onTradeExecuted,
   }, [symbol]);
 
   const current = data && data.id === symbol && data.interval === interval ? data : null;
-  const shift = (c: CandleResponse | null) => (c ? c.candles.map((b) => ({ ...b, time: b.time + c.gmtOffset })) : []);
+  const shift = (c: CandleResponse | null) =>
+    c ? c.candles.filter((b) => [b.open, b.high, b.low, b.close].every((v) => typeof v === "number" && isFinite(v))).map((b) => ({ ...b, time: b.time + c.gmtOffset })) : [];
   const bars = useMemo(() => shift(current), [current]);
   const dailyBars = useMemo(() => shift(daily && daily.id === symbol ? daily : null), [daily, symbol]);
   const step = INTERVALS.find((i) => i.id === interval)!.seconds;
@@ -505,8 +506,24 @@ export default function ChartPage({ symbol: rawSymbol, tickers, onTradeExecuted,
   const railBtn = (on: boolean) =>
     `relative w-9 h-9 rounded-md flex items-center justify-center transition-colors ${on ? "text-lq-gold bg-lq-gold/10" : "text-lq-text-2 hover:text-lq-text hover:bg-lq-surface-2"}`;
 
+  // Fill the viewport below the header and market strip.
+  const [avail, setAvail] = useState<number | null>(null);
+  useEffect(() => {
+    const measure = () => {
+      const top = rootRef.current ? rootRef.current.getBoundingClientRect().top + window.scrollY : 0;
+      setAvail(window.innerHeight - top);
+    };
+    measure();
+    const t = window.setTimeout(measure, 400);
+    window.addEventListener("resize", measure);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+
   return (
-    <div ref={rootRef} className="flex-1 w-full flex flex-col bg-lq-bg" style={{ height: fullscreen ? "100vh" : "calc(100vh - 64px)", minHeight: 560 }}>
+    <div ref={rootRef} className="shrink-0 w-full flex flex-col bg-lq-bg" style={{ height: fullscreen ? "100vh" : avail ? `${avail}px` : "calc(100vh - 110px)", minHeight: 560 }}>
       {/* ===== Top toolbar ===== */}
       <div className="flex items-center gap-1 px-2 h-11 border-b border-lq-line bg-lq-bg-2 overflow-x-auto shrink-0">
         <div className="flex items-center gap-2 pl-1 pr-3 mr-1 border-r border-lq-line h-full shrink-0">

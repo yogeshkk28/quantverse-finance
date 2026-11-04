@@ -165,6 +165,8 @@ export interface PlotDef {
   colorDown?: string;
   width?: number;
   dashed?: boolean;
+  /** Colour each point by the sign of this output: `color` when ≥ 0, `colorDown` when < 0. */
+  signKey?: string;
 }
 
 export interface BandDef {
@@ -376,17 +378,14 @@ export const INDICATORS: IndicatorDef[] = [
     id: "supertrend", name: "Supertrend", short: "Supertrend", category: "Trend", overlay: true,
     description: "ATR-based trailing line: green below price in uptrends, red above in downtrends.",
     params: [{ key: "length", label: "ATR length", default: 10, min: 1 }, { key: "mult", label: "Multiplier", default: 3, step: 0.5, min: 0.5 }],
-    plots: [
-      { key: "up", title: "Up", type: "step", color: C.up, width: 2 },
-      { key: "dn", title: "Down", type: "step", color: C.down, width: 2 },
-    ],
+    plots: [{ key: "st", title: "Supertrend", type: "step", color: C.up, colorDown: C.down, width: 2, signKey: "dir" }],
     compute: (b, p) => {
       const a = atr(b, p.length);
-      const up: Series = [], dn: Series = [];
+      const st: Series = [], dir: Series = [];
       let fu = 0, fl = 0, trend = 1;
       b.forEach((x, i) => {
         const at = a[i];
-        if (at === null) { up.push(null); dn.push(null); return; }
+        if (at === null) { st.push(null); dir.push(null); return; }
         const m = (x.high + x.low) / 2;
         const bu = m + p.mult * at, bl = m - p.mult * at;
         const pc = b[i - 1]?.close ?? x.close;
@@ -394,10 +393,10 @@ export const INDICATORS: IndicatorDef[] = [
         fl = fl === 0 || bl > fl || pc < fl ? bl : fl;
         if (trend === 1 && x.close < fl) trend = -1;
         else if (trend === -1 && x.close > fu) trend = 1;
-        up.push(trend === 1 ? fl : null);
-        dn.push(trend === -1 ? fu : null);
+        st.push(trend === 1 ? fl : fu);
+        dir.push(trend);
       });
-      return { up, dn };
+      return { st, dir };
     },
   },
   {

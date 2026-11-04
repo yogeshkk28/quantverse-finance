@@ -3,7 +3,7 @@ import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom"
 import Header from "./components/Header";
 import DashboardTab from "./components/DashboardTab";
 import ScreenerTab from "./components/ScreenerTab";
-import ChartsTab from "./components/ChartsTab";
+import ChartPage from "./components/chart/ChartPage";
 import PortfolioTab from "./components/PortfolioTab";
 import CorrelationWebTab from "./components/CorrelationWebTab";
 import MarketsPage from "./components/MarketsPage";
@@ -281,12 +281,12 @@ export default function App() {
         {activeTab === "charts" && !chartSymbol && <Navigate to={chartPath(activeTickerId)} replace />}
 
         {activeTab === "charts" && chartSymbol && (
-          <ChartsTab
+          <ChartPage
+            key={chartSymbol}
+            symbol={chartSymbol}
             tickers={tickers}
-            activeTickerId={activeTickerId}
-            onSelectTicker={(tk) => navigate(chartPath(tk))}
             onAlertMessage={(msg) => triggerNotificationAlert(msg, "info")}
-            onTradeExectued={handleExecutionTransaction}
+            onTradeExecuted={handleExecutionTransaction}
           />
         )}
 

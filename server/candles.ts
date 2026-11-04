@@ -279,7 +279,7 @@ function sampleCandles(id: string, symbol: string, interval: ChartInterval, rang
   let price = sample?.price ?? (isIN ? 1500 : 150);
   // Start the walk lower/higher so it ends near the sample price.
   const dailyVol = 0.018;
-  const barVol = dailyVol * Math.sqrt(spec.seconds / 23_400) * (intraday ? 1 : 1);
+  const barVol = dailyVol * Math.sqrt(intraday ? spec.seconds / 23_400 : spec.seconds / 86_400);
   let vol = barVol;
   const raw: OhlcBar[] = [];
   let prevDay = -1;
@@ -290,7 +290,9 @@ function sampleCandles(id: string, symbol: string, interval: ChartInterval, rang
     prevDay = day;
     vol = Math.max(barVol * 0.4, Math.min(barVol * 3.5, vol * 0.94 + barVol * 0.06 + Math.abs(gauss()) * barVol * 0.08));
     const shock = rnd() < 0.01 ? gauss() * vol * 4 : 0;
-    const ret = gauss() * vol + shock + 0.00002;
+    // Mild pull toward the starting level keeps multi-year samples in a plausible range.
+    const drift = -0.01 * Math.log(open / (sample?.price ?? (isIN ? 1500 : 150))) * Math.min(30, Math.max(spec.seconds / 86_400, 0.05));
+    const ret = Math.max(-0.4, Math.min(0.4, gauss() * vol + shock + drift));
     const close = open * (1 + ret);
     const wiggle = () => Math.abs(gauss()) * vol * 0.6;
     const high = Math.max(open, close) * (1 + wiggle());
@@ -315,8 +317,10 @@ function sampleCandles(id: string, symbol: string, interval: ChartInterval, rang
     volume: b.volume,
   }));
   const last = candles[candles.length - 1];
-  const highs = candles.map((c) => c.high);
-  const lows = candles.map((c) => c.low);
+  const yearAgo = last.time - 365 * 86_400;
+  const year = candles.filter((c) => c.time >= yearAgo);
+  const highs = year.map((c) => c.high);
+  const lows = year.map((c) => c.low);
   const currency = isIN ? "INR" : "USD";
   const lastDay = Math.floor((last.time + gmtOffset) / 86_400);
   const today = candles.filter((c) => Math.floor((c.time + gmtOffset) / 86_400) === lastDay);

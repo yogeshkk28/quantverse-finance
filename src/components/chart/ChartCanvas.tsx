@@ -313,7 +313,16 @@ const ChartCanvas = forwardRef<ChartHandle, Props>(function ChartCanvas(props, r
             },
             pane
           );
-          s.setData(values.map((v, i) => (v === null ? { time: t(timeAt(i)) } : { time: t(timeAt(i)), value: v })));
+          const sign = plot.signKey ? out[plot.signKey] : null;
+          s.setData(
+            values.map((v, i) =>
+              v === null
+                ? { time: t(timeAt(i)) }
+                : sign
+                  ? { time: t(timeAt(i)), value: v, color: (sign[i] ?? 1) < 0 ? plot.colorDown || plot.color : plot.color }
+                  : { time: t(timeAt(i)), value: v }
+            )
+          );
         }
         if (pi === 0 && def.levels && !inst.hidden) {
           for (const lvl of def.levels) s.createPriceLine({ price: lvl, color: "rgba(154,163,184,0.45)", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
@@ -649,7 +658,8 @@ const ChartCanvas = forwardRef<ChartHandle, Props>(function ChartCanvas(props, r
       values: def.plots
         .map((pl) => {
           const v = out[pl.key]?.[idx];
-          return { color: pl.type === "histogram" ? (v !== null && v !== undefined && v < 0 ? pl.colorDown || pl.color : pl.color) : pl.color, text: v === null || v === undefined ? "" : def.overlay ? fmt(v) : Math.abs(v) >= 1e5 ? formatVolume(v) : v.toFixed(2) };
+          const neg = pl.type === "histogram" ? v !== null && v !== undefined && v < 0 : pl.signKey ? (out[pl.signKey]?.[idx] ?? 1) < 0 : false;
+          return { color: neg ? pl.colorDown || pl.color : pl.color, text: v === null || v === undefined ? "" : def.overlay ? fmt(v) : Math.abs(v) >= 1e5 ? formatVolume(v) : v.toFixed(2) };
         })
         .filter((v) => v.text),
     });
