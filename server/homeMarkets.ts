@@ -3,6 +3,7 @@ import { getYahooChart, mapLimit, round, cached, sma, emaSeries, rsiSeries, Cand
 import { UNIVERSE, findEntry, CURRENCY } from "./universe";
 import { config } from "./config";
 import { mockNews } from "./mockDb";
+import { getScreener } from "./screener";
 
 /**
  * Data for the expanded homepage: index cards, global futures, forex, the
@@ -634,6 +635,57 @@ router.get("/api/ipos", async (_req: Request, res: Response) => {
     ),
   ]);
   res.json({ US: us, IN: india });
+});
+
+// -------------------------------------------------------------------------
+// Movers: top gainers, losers and most active across the screener universe
+// -------------------------------------------------------------------------
+
+const MOVER_LISTS = ["gainers", "losers", "active"] as const;
+type MoverList = (typeof MOVER_LISTS)[number];
+
+// GET /api/movers?list=gainers|losers|active&market=ALL|US|IN&limit=10
+// Ranks the screener's ~350 US and NSE stocks by today's change, or by traded value
+// (shares × price, in USD so both markets compare fairly) for "active".
+router.get("/api/movers", async (req: Request, res: Response) => {
+  const list = (MOVER_LISTS as readonly string[]).includes(String(req.query.list)) ? (String(req.query.list) as MoverList) : "gainers";
+  const market = String(req.query.market || "ALL").toUpperCase();
+  const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 10));
+  try {
+    const scr = await getScreener();
+    const fx = scr.usdInr || 84;
+    let rows = scr.rows.filter((r) => r.chg != null && (market === "ALL" || r.market === market));
+    if (list === "gainers") rows = rows.filter((r) => r.chg! > 0).sort((a, b) => b.chg! - a.chg!);
+    else if (list === "losers") rows = rows.filter((r) => r.chg! < 0).sort((a, b) => a.chg! - b.chg!);
+    else {
+      const value = (r: (typeof rows)[number]) => ((r.volume ?? 0) * r.price) / (r.market === "IN" ? fx : 1);
+      rows = rows.filter((r) => (r.volume ?? 0) > 0).sort((a, b) => value(b) - value(a));
+    }
+    res.json({
+      list,
+      market,
+      status: scr.status,
+      simulated: scr.mode === "simulated",
+      universe: scr.universe,
+      updatedAt: scr.updatedAt,
+      total: rows.length,
+      rows: rows.slice(0, limit).map((r) => ({
+        id: r.id,
+        name: r.name,
+        market: r.market,
+        sector: r.sector,
+        currency: r.currency,
+        price: r.price,
+        changePct: r.chg,
+        volume: r.volume,
+        relVolume: r.relVolume,
+        valueUsd: r.volume != null ? Math.round((r.volume * r.price) / (r.market === "IN" ? fx : 1)) : null,
+      })),
+    });
+  } catch (err) {
+    console.error("[Movers]", err);
+    res.json({ list, market, status: "error", simulated: false, total: 0, rows: [] });
+  }
 });
 
 export default router;

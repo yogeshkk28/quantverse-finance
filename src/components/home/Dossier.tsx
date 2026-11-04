@@ -65,7 +65,21 @@ const SEASON_COLORS = ["var(--lq-gold)", "#7cc4ff", "#a3a7b7"];
  * returns by horizon, seasonal paths, a technical summary, realised volatility by
  * horizon, risk and profile. Section tabs at the top jump within the panel.
  */
-export default function Dossier({ symbol, news }: { symbol: string; news: NewsItem[] }) {
+export const DOSSIER_PICKS = [
+  { symbol: "^GSPC", label: "S&P 500" },
+  { symbol: "^IXIC", label: "Nasdaq" },
+  { symbol: "^NSEI", label: "Nifty 50" },
+  { symbol: "^BSESN", label: "Sensex" },
+  { symbol: "^NSEBANK", label: "Nifty Bank" },
+  { symbol: "CL=F", label: "WTI crude" },
+  { symbol: "NG=F", label: "Natural gas" },
+  { symbol: "GC=F", label: "Gold" },
+  { symbol: "HG=F", label: "Copper" },
+  { symbol: "USDINR=X", label: "USD/INR" },
+  { symbol: "BTC-USD", label: "Bitcoin" },
+];
+
+export default function Dossier({ symbol, news, onPick }: { symbol: string; news: NewsItem[]; onPick: (symbol: string) => void }) {
   const d = useJson<DossierData>(`/api/dossier?symbol=${encodeURIComponent(symbol)}`, 180_000);
   const scroller = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState<string>("pulse");
@@ -103,6 +117,20 @@ export default function Dossier({ symbol, news }: { symbol: string; news: NewsIt
             </h2>
             <span className="lq-lbl text-[10px]">Dossier · {d?.profile?.type ?? kindLabel(d?.kind)}</span>
           </div>
+          <label className="flex-none">
+            <span className="sr-only">Instrument</span>
+            <select
+              value={symbol}
+              onChange={(e) => onPick(e.target.value)}
+              className="lq-input !min-h-[30px] !px-2 text-[12px] cursor-pointer"
+            >
+              {DOSSIER_PICKS.map((p) => (
+                <option key={p.symbol} value={p.symbol}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
         {ok ? (
           <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1">
@@ -135,7 +163,7 @@ export default function Dossier({ symbol, news }: { symbol: string; news: NewsIt
         </nav>
       </header>
 
-      <div ref={scroller} onScroll={onScroll} tabIndex={0} aria-label="Dossier details" className="relative flex-1 min-h-0 overflow-y-auto px-5 pb-6 max-h-[70vh] xl:max-h-none">
+      <div ref={scroller} onScroll={onScroll} tabIndex={0} aria-label="Dossier details" className="relative flex-1 min-h-0 overflow-y-auto px-5 pb-6 max-h-[620px] xl:max-h-none">
         {d === undefined ? (
           <div className="flex flex-col gap-4 pt-4">
             {Array.from({ length: 5 }, (_, i) => (

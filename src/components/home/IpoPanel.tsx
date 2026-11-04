@@ -46,15 +46,20 @@ export default function IpoPanel() {
   const count = (s: Ipo["status"]) => (feed?.items ?? []).filter((i) => i.status === s).length;
 
   return (
-    <section id="ipo" className="lq-panel lq-rise p-6 md:p-7 flex flex-col gap-5 min-w-0" aria-labelledby="ipo-h" style={{ "--lq-i": 8 } as React.CSSProperties}>
+    <section id="ipo" className="lq-panel lq-rise p-5 flex flex-col gap-3 min-w-0" aria-labelledby="ipo-h">
       <div className="flex items-center flex-wrap gap-x-3 gap-y-2">
-        <span className="lq-marker" aria-hidden="true" />
-        <h2 id="ipo-h" className="lq-h2">
+        <h2 id="ipo-h" className="m-0 text-[17px] font-semibold text-lq-text">
           IPO calendar
         </h2>
-        <div role="group" aria-label="Market" className="ml-auto flex gap-2">
+        <div role="group" aria-label="Market" className="ml-auto flex gap-1">
           {MARKETS.map((m) => (
-            <button key={m.key} type="button" className="lq-chip" aria-pressed={market === m.key} onClick={() => setMarket(m.key)}>
+            <button
+              key={m.key}
+              type="button"
+              aria-pressed={market === m.key}
+              onClick={() => setMarket(m.key)}
+              className={`px-2 py-1 rounded-md text-[11px] ${market === m.key ? "bg-lq-surface-2 text-lq-text border border-lq-line-2" : "text-lq-muted hover:text-lq-text border border-transparent"}`}
+            >
               {m.label}
             </button>
           ))}
@@ -68,7 +73,7 @@ export default function IpoPanel() {
             role="tab"
             aria-selected={stage === s.key}
             onClick={() => setStage(s.key)}
-            className={`px-3 py-2.5 text-[13px] whitespace-nowrap border-b-2 -mb-px transition-colors flex items-center gap-2 ${
+            className={`px-2.5 py-2 text-[12px] whitespace-nowrap border-b-2 -mb-px transition-colors flex items-center gap-2 ${
               stage === s.key ? "border-lq-gold text-lq-text" : "border-transparent text-lq-muted hover:text-lq-text"
             }`}
           >
@@ -92,10 +97,10 @@ export default function IpoPanel() {
       ) : rows.length === 0 ? (
         <p className="m-0 py-8 text-center text-[13px] text-lq-muted">No {STAGES.find((s) => s.key === stage)!.label.toLowerCase()} IPOs in this window.</p>
       ) : (
-        <ul className="m-0 p-0 list-none flex flex-col gap-2 max-h-[420px] overflow-y-auto pr-1">
+        <ul className="m-0 p-0 list-none flex flex-col max-h-[360px] overflow-y-auto pr-1">
           {rows.map((i) => (
-            <li key={`${i.name}-${i.openDate}`} className="lq-card px-4 py-3 grid grid-cols-[52px_1fr_auto] items-center gap-4">
-              <span className="flex flex-col items-center justify-center rounded-lg border border-lq-gold-line bg-lq-bg-2 py-1.5">
+            <li key={`${i.name}-${i.openDate}`} className="border-b border-lq-line-soft last:border-0 px-1 py-2.5 grid grid-cols-[52px_1fr_auto] items-center gap-4">
+              <span className="flex flex-col items-center justify-center rounded-lg border border-lq-line-2 bg-lq-surface-2 py-1">
                 <span className="lq-lbl text-[9px] text-lq-gold">{fmtDate(i.openDate).split(" ")[0]}</span>
                 <span className="lq-num text-[16px] text-lq-text leading-none">{fmtDate(i.openDate).split(" ")[1] ?? "—"}</span>
               </span>

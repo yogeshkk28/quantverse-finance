@@ -46,7 +46,7 @@ export default function Header({ activeTab, setActiveTab, onNotificationsClick }
   const portfolioActive = activeTab === "portfolio";
 
   return (
-    <header className="sticky top-0 z-50 border-b border-lq-line bg-[rgba(7,8,12,0.86)] backdrop-blur-md">
+    <header className="sticky top-0 z-50 border-b border-lq-line bg-[var(--lq-glass)] backdrop-blur-md">
       <div className="flex h-16 items-center gap-3 lg:gap-6 px-4 md:px-8 w-full max-w-[1600px] mx-auto">
         <button
           type="button"

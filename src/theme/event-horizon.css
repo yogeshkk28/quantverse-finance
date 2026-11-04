@@ -41,6 +41,11 @@
   --lq-gold-grad: linear-gradient(135deg, #f5e6ca 0%, #d4af37 55%, #b8912a 100%);
   --lq-violet: #8f7bff;
   --lq-violet-glow: rgba(143, 123, 255, 0.18);
+  /* Translucent bars (header, strip, footer) and input fields */
+  --lq-glass: rgba(7, 8, 12, 0.86);
+  --lq-glass-2: rgba(11, 12, 18, 0.84);
+  --lq-field: rgba(16, 18, 26, 0.75);
+  --lq-panel-bg: linear-gradient(180deg, rgba(22, 25, 36, 0.88), rgba(14, 16, 23, 0.9));
   /* Data */
   --lq-up: #4ade80;
   --lq-down: #f87171;
@@ -54,6 +59,54 @@
   --lq-font-num: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
   color-scheme: dark;
+}
+
+/*
+ * Light reading mode. Same structure and gold accent, inverted surfaces.
+ * Toggled from the homepage and stored per device (src/theme/theme.ts).
+ */
+:root[data-theme="light"] {
+  --lq-bg: #f5f3ee;
+  --lq-bg-2: #efece5;
+  --lq-surface: #ffffff;
+  --lq-surface-2: #f6f4ef;
+  --lq-line: #e3dfd5;
+  --lq-line-soft: #eeebe4;
+  --lq-line-2: #d5cfc1;
+  --lq-ph: #e9e5dc;
+  --lq-ph-2: #ddd7ca;
+  --lq-text: #16171b;
+  --lq-text-2: #3b3e48;
+  --lq-muted: #6c707c;
+  --lq-gold: #9c7a14;
+  --lq-gold-soft: #6f560c;
+  --lq-gold-deep: #c4a043;
+  --lq-gold-line: rgba(156, 122, 20, 0.32);
+  --lq-violet: #6b57e0;
+  --lq-violet-glow: rgba(107, 87, 224, 0.12);
+  --lq-up: #12833f;
+  --lq-down: #c8302e;
+  --lq-shadow: 0 1px 2px rgba(20, 20, 30, 0.04), 0 6px 20px rgba(20, 20, 30, 0.05);
+  --lq-glass: rgba(255, 255, 255, 0.86);
+  --lq-glass-2: rgba(250, 249, 246, 0.9);
+  --lq-field: #ffffff;
+  --lq-panel-bg: #ffffff;
+  color-scheme: light;
+}
+:root[data-theme="light"] .lq-cosmos {
+  background-image: none;
+}
+:root[data-theme="light"] .lq-cosmos__glow,
+:root[data-theme="light"] .lq-cosmos__rings {
+  opacity: 0.25;
+}
+:root[data-theme="light"] .lq-h1--grad {
+  background: linear-gradient(90deg, #16171b, #9c7a14 70%, #6b57e0);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+:root[data-theme="light"] ::selection {
+  color: #16171b;
 }
 
 /* Tailwind utilities that read the tokens: bg-lq-bg, text-lq-muted, border-lq-gold-line, … */
@@ -100,7 +153,7 @@
   /* Glass surface, 14px radius, gold hairline on top. */
   .lq-panel {
     position: relative;
-    background: linear-gradient(180deg, rgba(22, 25, 36, 0.88), rgba(14, 16, 23, 0.9));
+    background: var(--lq-panel-bg);
     border: 1px solid var(--lq-line);
     border-radius: var(--lq-radius);
     box-shadow: var(--lq-shadow);

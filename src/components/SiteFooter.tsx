@@ -14,7 +14,7 @@ const TOOLS: Array<{ id: ActiveTab; label: string }> = [
 /** Shared footer: tools, policies and the paper-trading and data disclosure. */
 export default function SiteFooter({ onOpenTab }: { onOpenTab: (tab: ActiveTab) => void }) {
   return (
-    <footer className="relative z-10 mt-16 border-t border-lq-line bg-[rgba(11,12,18,0.85)]">
+    <footer className="relative z-10 mt-16 border-t border-lq-line bg-[var(--lq-glass-2)]">
       <div className="max-w-[1600px] mx-auto px-4 md:px-8 py-10 grid gap-8 grid-cols-2 md:grid-cols-[2fr_1fr_1fr]">
         <div className="col-span-2 md:col-span-1 flex flex-col gap-3 max-w-xl">
           <span className="font-serif text-2xl text-lq-gold">Lumina Quant</span>

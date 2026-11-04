@@ -6,6 +6,8 @@ import ScreenerTab from "./components/ScreenerTab";
 import ChartsTab from "./components/ChartsTab";
 import PortfolioTab from "./components/PortfolioTab";
 import CorrelationWebTab from "./components/CorrelationWebTab";
+import MoversPage from "./components/MoversPage";
+import { mountTheme } from "./theme/theme";
 import MarketsPage from "./components/MarketsPage";
 import { chartPath, lastChart, rememberChart, MARKET_ITEMS } from "./components/nav/navConfig";
 import { Ticker, ActiveTab } from "./types";
@@ -17,13 +19,14 @@ import WormholeTransition from "./app/WormholeTransition";
 import { useReducedMotion } from "./landing/hooks";
 
 
-const TABS: ActiveTab[] = ["dashboard", "screener", "charts", "markets", "portfolio", "signals"];
+const TABS: ActiveTab[] = ["dashboard", "screener", "charts", "markets", "movers", "portfolio", "signals"];
 
 export default function App() {
   // The view lives in the URL so every page is linkable:
   //   /app/dashboard, /app/screener, /app/portfolio, /app/signals
   //   /app/chart/:symbol      dedicated chart page for one stock or instrument
   //   /app/markets/:category  stocks | crypto | forex | futures | indices | bonds
+  //   /app/movers/:list       gainers | losers | active (full lists behind the homepage cards)
   //   /app/charts             legacy alias, redirects to the last chart viewed
   const { tab, param } = useParams();
   const navigate = useNavigate();
@@ -45,6 +48,7 @@ export default function App() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [activeTab, param]);
+  useEffect(mountTheme, []);
   const [tickers, setTickers] = useState<Ticker[]>([]);
   const activeTickerId = chartSymbol ?? lastChart();
   useEffect(() => {
@@ -290,6 +294,7 @@ export default function App() {
           />
         )}
 
+        {activeTab === "movers" && <MoversPage list={param} />}
         {activeTab === "markets" && <MarketsPage category={marketCategory} onOpenChart={(id) => navigate(chartPath(id))} />}
 
         {activeTab === "portfolio" && (

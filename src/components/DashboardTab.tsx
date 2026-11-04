@@ -3,18 +3,14 @@ import { ActiveTab, Ticker } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { useMarketSummary } from "./MarketStatusPill";
 import { formatWait } from "../landing/marketHours";
-import IndicesPanel from "./dashboard/IndicesPanel";
+import { Moon, Sun } from "lucide-react";
 import { SentimentPanel, MacroPanel } from "./dashboard/SentimentPanel";
-import MostActivePanel from "./dashboard/MostActivePanel";
-import IdeasPanel from "./dashboard/IdeasPanel";
-import { PaperAccount, Watchlist, SignalsPanel } from "./dashboard/Rail";
-import IndexDeck from "./home/IndexDeck";
-import FuturesPanel from "./home/FuturesPanel";
-import ForexPanel from "./home/ForexPanel";
-import CryptoGrid from "./home/CryptoGrid";
+import { PaperAccount, Watchlist } from "./dashboard/Rail";
+import { IndicesList, FuturesList, ForexList, CryptoList, MoversList } from "./home/HomeLists";
 import NewsPanel, { useNews } from "./home/NewsPanel";
 import IpoPanel from "./home/IpoPanel";
 import Dossier from "./home/Dossier";
+import { useTheme, setTheme } from "../theme/theme";
 
 interface DashboardTabProps {
   tickers: Ticker[];
@@ -34,98 +30,85 @@ function nameFrom(email?: string) {
 }
 
 /**
- * Home: the Event Horizon dashboard.
- *
- * Top to bottom: benchmark index cards, the index chart and commodity futures
- * beside the instrument dossier, market movers, forex and crypto, news and IPOs,
- * then sentiment and the paper workspace. Clicking any index, future, pair or
- * coin puts it in the dossier.
+ * Home: compact quote lists in three columns (indices, futures, forex, movers,
+ * crypto) with the instrument dossier on the right, then news and IPOs, then
+ * sentiment and the paper workspace. Rows open the chart page; full lists live
+ * behind each "See all" link.
  */
 export default function DashboardTab({ tickers, portfolio, onSelectTicker, onOpenTab }: DashboardTabProps) {
   const { user } = useAuth();
   const { now, live, next, total } = useMarketSummary();
   const name = nameFrom(user?.email);
-  const symbols = tickers.length ? tickers.map((t) => t.id) : ["NVDA", "AAPL", "RELIANCE", "TCS"];
   const news = useNews();
-
-  const [chartSymbol, setChartSymbol] = React.useState("^GSPC");
+  const theme = useTheme();
   const [focus, setFocus] = React.useState("^GSPC");
-  const dossierRef = React.useRef<HTMLDivElement>(null);
   const held = React.useMemo(
     () => new Set(Object.entries(portfolio.positions).filter(([, p]) => p.qty > 0).map(([id]) => id)),
     [portfolio.positions]
   );
 
-  const focusOn = (symbol: string) => {
-    setFocus(symbol);
-    // Below the wide layout the dossier sits under the chart; bring it into view.
-    const el = dossierRef.current;
-    if (el && window.innerWidth < 1280) {
-      const r = el.getBoundingClientRect();
-      if (r.top > window.innerHeight || r.bottom < 0) el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  };
-  const pickIndex = (symbol: string) => {
-    setChartSymbol(symbol);
-    focusOn(symbol);
-  };
-
   return (
-    <div className="w-full max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-10 py-10 flex flex-col gap-10">
-      <div className="lq-rise flex flex-col gap-2" style={{ "--lq-i": 0 } as React.CSSProperties}>
-        <h1 className="lq-h1 lq-h1--grad">
-          {greeting(now)}
-          {name ? `, ${name}` : ""}
-        </h1>
-        <p className="m-0 text-[14px] text-lq-text-2">
-          <span className="lq-num">{live.length}</span> of {total} exchanges are live
-          {next[0] && (
-            <>
-              {" "}
-              · next open: <span className="text-lq-text">{next[0].code}</span> in <span className="lq-num">{formatWait(next[0].opensIn)}</span>
-            </>
-          )}
-          <span className="text-lq-muted"> · Paper trading with virtual money</span>
-        </p>
+    <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-6">
+      <div className="lq-rise flex flex-wrap items-end gap-3" style={{ "--lq-i": 0 } as React.CSSProperties}>
+        <div className="flex flex-col gap-1">
+          <h1 className="m-0 font-serif text-[30px] leading-tight lq-h1--grad">
+            {greeting(now)}
+            {name ? `, ${name}` : ""}
+          </h1>
+          <p className="m-0 text-[13px] text-lq-text-2">
+            <span className="lq-num">{live.length}</span> of {total} exchanges are live
+            {next[0] && (
+              <>
+                {" "}
+                · next open: <span className="text-lq-text">{next[0].code}</span> in <span className="lq-num">{formatWait(next[0].opensIn)}</span>
+              </>
+            )}
+            <span className="text-lq-muted"> · Paper trading with virtual money</span>
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          className="ml-auto inline-flex items-center gap-2 h-8 px-3 rounded-full border border-lq-line-2 text-[12px] text-lq-text-2 hover:text-lq-text hover:border-lq-gold-line"
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+          {theme === "dark" ? "Light mode" : "Dark mode"}
+        </button>
       </div>
 
-      <IndexDeck selected={chartSymbol} onSelect={pickIndex} />
-
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_440px]">
-        <div className="flex flex-col gap-8 min-w-0">
-          <IndicesPanel symbol={chartSymbol} onSymbol={pickIndex} />
-          <FuturesPanel held={held} focus={focus} onFocus={focusOn} />
-        </div>
-        <div ref={dossierRef} className="relative min-w-0 scroll-mt-24 xl:min-h-[720px]">
-          <div className="xl:absolute xl:inset-0 flex flex-col">
-            <Dossier symbol={focus} news={news?.items ?? []} />
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px] items-start">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 items-start min-w-0">
+          <div className="flex flex-col gap-6 min-w-0">
+            <IndicesList />
+            <FuturesList held={held} />
+            <ForexList />
+          </div>
+          <div className="flex flex-col gap-6 min-w-0">
+            <MoversList list="gainers" />
+            <CryptoList />
+          </div>
+          <div className="flex flex-col gap-6 min-w-0">
+            <MoversList list="losers" />
+            <MoversList list="active" />
           </div>
         </div>
+        <div className="xl:sticky xl:top-24 xl:h-[calc(100vh-7.5rem)] flex flex-col min-w-0">
+          <Dossier symbol={focus} onPick={setFocus} news={news?.items ?? []} />
+        </div>
       </div>
 
-      <MostActivePanel onSelect={onSelectTicker} onOpenScreener={() => onOpenTab("screener")} />
-
-      <div className="grid gap-8 lg:grid-cols-2 items-start">
-        <ForexPanel focus={focus} onFocus={focusOn} />
-        <CryptoGrid focus={focus} onFocus={focusOn} />
-      </div>
-
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] items-start">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] items-start">
         <NewsPanel data={news} />
         <IpoPanel />
       </div>
 
-      <section aria-label="Sentiment and your workspace" className="grid gap-8 md:grid-cols-2 2xl:grid-cols-4 items-start">
+      <section aria-label="Sentiment and your workspace" className="grid gap-6 md:grid-cols-2 2xl:grid-cols-4 items-start">
         <SentimentPanel />
         <MacroPanel />
         <PaperAccount portfolio={portfolio} tickers={tickers} onOpen={() => onOpenTab("portfolio")} />
         <Watchlist tickers={tickers} onSelect={onSelectTicker} />
       </section>
-
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] items-start">
-        <IdeasPanel symbols={symbols} />
-        <SignalsPanel tickers={tickers} onSelect={onSelectTicker} />
-      </div>
     </div>
   );
 }
