@@ -6,6 +6,8 @@ import cookieParser from "cookie-parser";
 import apiRouter from "./server/routes";
 import authRouter from "./server/auth";
 import dashboardRouter from "./server/dashboard";
+import marketsRouter from "./server/markets";
+import searchRouter from "./server/search";
 import { getLiveGlobalIndices } from "./server/apiClients";
 dotenv.config();
 
@@ -19,6 +21,8 @@ const PORT = 3000;
 app.use(authRouter);
 app.use(apiRouter);
 app.use(dashboardRouter);
+app.use(marketsRouter);
+app.use(searchRouter);
 app.get("/api/global-indices", async (req, res) => {
   try {
     const indices = await getLiveGlobalIndices();
