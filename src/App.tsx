@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import Header from "./components/Header";
 import DashboardTab from "./components/DashboardTab";
 import ScreenerTab from "./components/ScreenerTab";
-import ChartsTab from "./components/ChartsTab";
+import ChartPage from "./components/chart/ChartPage";
 import PortfolioTab from "./components/PortfolioTab";
 import CorrelationWebTab from "./components/CorrelationWebTab";
+import MarketsPage from "./components/MarketsPage";
+import { chartPath, lastChart, rememberChart, MARKET_ITEMS } from "./components/nav/navConfig";
 import { Ticker, ActiveTab } from "./types";
 import { AlertCircle, CheckCircle2, X } from "lucide-react";
 import MarketStrip from "./components/MarketStrip";
@@ -15,14 +17,22 @@ import WormholeTransition from "./app/WormholeTransition";
 import { useReducedMotion } from "./landing/hooks";
 
 
-const TABS: ActiveTab[] = ["dashboard", "screener", "charts", "portfolio", "signals"];
+const TABS: ActiveTab[] = ["dashboard", "screener", "charts", "markets", "portfolio", "signals"];
 
 export default function App() {
-  // The active tab lives in the URL (/app/screener, /app/charts, …) so views are linkable.
-  const { tab } = useParams();
+  // The view lives in the URL so every page is linkable:
+  //   /app/dashboard, /app/screener, /app/portfolio, /app/signals
+  //   /app/chart/:symbol      dedicated chart page for one stock or instrument
+  //   /app/markets/:category  stocks | crypto | forex | futures | indices | bonds
+  //   /app/charts             legacy alias, redirects to the last chart viewed
+  const { tab, param } = useParams();
   const navigate = useNavigate();
-  const activeTab: ActiveTab = TABS.includes(tab as ActiveTab) ? (tab as ActiveTab) : "dashboard";
-  const setActiveTab = (next: ActiveTab) => navigate(`/app/${next}`);
+  const routeTab = tab === "chart" ? "charts" : tab;
+  const activeTab: ActiveTab = TABS.includes(routeTab as ActiveTab) ? (routeTab as ActiveTab) : "dashboard";
+  const chartSymbol = tab === "chart" && param ? decodeURIComponent(param).toUpperCase() : null;
+  const marketCategory = MARKET_ITEMS.some((m) => m.category === param) ? param! : "stocks";
+  const setActiveTab = (next: ActiveTab) =>
+    navigate(next === "charts" ? chartPath(lastChart()) : next === "markets" ? "/app/markets/stocks" : `/app/${next}`);
   const location = useLocation();
   const reduced = useReducedMotion();
 
@@ -34,9 +44,12 @@ export default function App() {
   // Arriving from the landing page keeps its scroll position, so start each view at the top.
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [activeTab]);
+  }, [activeTab, param]);
   const [tickers, setTickers] = useState<Ticker[]>([]);
-  const [activeTickerId, setActiveTickerId] = useState<string>("NVDA");
+  const activeTickerId = chartSymbol ?? lastChart();
+  useEffect(() => {
+    if (chartSymbol) rememberChart(chartSymbol);
+  }, [chartSymbol]);
   
   // Real Portfolio State persisted offline first
   const [portfolio, setPortfolio] = useState<{
@@ -119,8 +132,7 @@ export default function App() {
     if (extra) {
       setTickers((prev) => (prev.some((t) => t.id === extra.id) ? prev : [...prev, extra]));
     }
-    setActiveTickerId(tickerId.toUpperCase());
-    setActiveTab("charts");
+    navigate(chartPath(tickerId.toUpperCase()));
   };
 
   // Portfolio reset callback
@@ -265,15 +277,20 @@ export default function App() {
           />
         )}
 
-        {activeTab === "charts" && (
-          <ChartsTab
+        {/* /app/charts (no symbol) is the old URL: send it to the last chart viewed. */}
+        {activeTab === "charts" && !chartSymbol && <Navigate to={chartPath(activeTickerId)} replace />}
+
+        {activeTab === "charts" && chartSymbol && (
+          <ChartPage
+            key={chartSymbol}
+            symbol={chartSymbol}
             tickers={tickers}
-            activeTickerId={activeTickerId}
-            onSelectTicker={(tk) => setActiveTickerId(tk)}
             onAlertMessage={(msg) => triggerNotificationAlert(msg, "info")}
-            onTradeExectued={handleExecutionTransaction}
+            onTradeExecuted={handleExecutionTransaction}
           />
         )}
+
+        {activeTab === "markets" && <MarketsPage category={marketCategory} onOpenChart={(id) => navigate(chartPath(id))} />}
 
         {activeTab === "portfolio" && (
           <PortfolioTab
