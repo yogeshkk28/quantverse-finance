@@ -85,3 +85,87 @@ export interface EventStudy {
 }
 
 export type ActiveTab = "dashboard" | "screener" | "charts" | "portfolio" | "signals";
+
+/** Where a screener row's numbers came from. "simulated" is never real market data. */
+export type ScreenerSource = "live" | "partial" | "simulated";
+
+/**
+ * One stock in the Screener (`/api/screener`). Every metric is null when no source
+ * covered it. Percentages are in percent units (5 = 5%).
+ */
+export interface ScreenerRow {
+  id: string;
+  symbol: string;
+  name: string;
+  sector: string;
+  industry: string;
+  market: "US" | "IN";
+  currency: string;
+  source: ScreenerSource;
+
+  // Price & size
+  price: number | null;
+  chg: number | null;
+  mktCap: number | null;
+  mktCapUsd: number | null;
+  volume: number | null;
+  avgVolume: number | null;
+  relVolume: number | null;
+  turnoverUsd: number | null;
+
+  // Valuation
+  pe: number | null;
+  fwdPe: number | null;
+  pb: number | null;
+  divYield: number | null;
+  eps: number | null;
+  epsGrowth: number | null;
+  analyst: number | null;
+
+  // Performance
+  perfW1: number | null;
+  perfM1: number | null;
+  perfM3: number | null;
+  perfM6: number | null;
+  perfYtd: number | null;
+  perfY1: number | null;
+
+  // Technicals
+  rsi: number | null;
+  sma50Dist: number | null;
+  sma200Dist: number | null;
+  high52: number | null;
+  low52: number | null;
+  fromHigh52: number | null;
+  fromLow52: number | null;
+  macdCross: boolean | null;
+  goldenCross: boolean | null;
+
+  // Risk
+  beta: number | null;
+  volatility: number | null;
+  maxDrawdown: number | null;
+  sharpe: number | null;
+
+  // Factor scores, 0–100 percentile within the stock's market
+  scoreValue: number | null;
+  scoreMomentum: number | null;
+  scoreStability: number | null;
+  scoreGrowth: number | null;
+  scoreComposite: number | null;
+
+  /** Up to 64 closes over the past year, oldest first, for sparklines. */
+  spark: number[];
+}
+
+export interface ScreenerResponse {
+  rows: ScreenerRow[];
+  /** "building" while the first load is still filling in. */
+  status: "building" | "ready";
+  progress: number;
+  mode: "live" | "simulated";
+  updatedAt: string;
+  universe: number;
+  coverage: { quotes: number; history: number };
+  usdInr: number;
+}

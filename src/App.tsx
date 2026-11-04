@@ -114,7 +114,11 @@ export default function App() {
   };
 
   // Switch ticker focus
-  const handleSelectTicker = (tickerId: string) => {
+  // Screener stocks outside the dashboard universe arrive with their own ticker data.
+  const handleSelectTicker = (tickerId: string, extra?: Ticker) => {
+    if (extra) {
+      setTickers((prev) => (prev.some((t) => t.id === extra.id) ? prev : [...prev, extra]));
+    }
     setActiveTickerId(tickerId.toUpperCase());
     setActiveTab("charts");
   };
