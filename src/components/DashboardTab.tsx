@@ -5,6 +5,7 @@ import { useMarketSummary } from "./MarketStatusPill";
 import { formatWait } from "../landing/marketHours";
 import { Moon, Sun } from "lucide-react";
 import { SentimentPanel, MacroPanel } from "./dashboard/SentimentPanel";
+import IndicesPanel from "./dashboard/IndicesPanel";
 import { PaperAccount, Watchlist } from "./dashboard/Rail";
 import { IndicesList, FuturesList, ForexList, CryptoList, MoversList } from "./home/HomeLists";
 import NewsPanel, { useNews } from "./home/NewsPanel";
@@ -42,6 +43,7 @@ export default function DashboardTab({ tickers, portfolio, onSelectTicker, onOpe
   const news = useNews();
   const theme = useTheme();
   const [focus, setFocus] = React.useState("^GSPC");
+  const [chartSymbol, setChartSymbol] = React.useState("^GSPC");
   const held = React.useMemo(
     () => new Set(Object.entries(portfolio.positions).filter(([, p]) => p.qty > 0).map(([id]) => id)),
     [portfolio.positions]
@@ -78,6 +80,14 @@ export default function DashboardTab({ tickers, portfolio, onSelectTicker, onOpe
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px] items-start">
+        <div className="flex flex-col gap-6 min-w-0">
+        <IndicesPanel
+          symbol={chartSymbol}
+          onSymbol={(sym) => {
+            setChartSymbol(sym);
+            setFocus(sym);
+          }}
+        />
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 items-start min-w-0">
           <div className="flex flex-col gap-6 min-w-0">
             <IndicesList />
@@ -92,6 +102,7 @@ export default function DashboardTab({ tickers, portfolio, onSelectTicker, onOpe
             <MoversList list="losers" />
             <MoversList list="active" />
           </div>
+        </div>
         </div>
         <div className="xl:sticky xl:top-24 xl:h-[calc(100vh-7.5rem)] flex flex-col min-w-0">
           <Dossier symbol={focus} onPick={setFocus} news={news?.items ?? []} />
