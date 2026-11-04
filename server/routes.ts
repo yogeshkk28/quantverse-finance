@@ -11,6 +11,9 @@ import {
 import { getFearGreed } from "./fearGreed";
 import { Market } from "./universe";
 import { buildWeb, eventStudy, loadPanel } from "./impact";
+import { cached } from "./marketData";
+import { Basis, dynamics, pair, structure } from "./correlationLab";
+import { Estimator } from "./quant/estimators";
 import { getScreener } from "./screener";
 
 const router = Router();
@@ -250,6 +253,77 @@ router.get("/api/correlation-web/events", async (req: Request, res: Response) =>
   } catch (err: any) {
     console.error(`[API] Event study failed for ${symbol}:`, err);
     res.status(500).json({ error: "Event study failed" });
+  }
+});
+
+// GET /api/correlation-web/structure?market=US|IN&days=30|90|250&basis=residual|raw&estimator=lw|rmt|sample
+// The cleaned correlation matrix, its eigen-spectrum, MST/TMFG/partial/threshold/lead-lag
+// networks, clusters and centrality for one window. See docs/correlation-web.md.
+router.get("/api/correlation-web/structure", async (req: Request, res: Response) => {
+  const market: Market = req.query.market === "IN" ? "IN" : "US";
+  const days = [30, 90, 250].includes(Number(req.query.days)) ? Number(req.query.days) : 90;
+  const basis: Basis = req.query.basis === "raw" ? "raw" : "residual";
+  const estimator: Estimator = req.query.estimator === "rmt" ? "rmt" : req.query.estimator === "sample" ? "sample" : "lw";
+  try {
+    const panel = await loadPanel(market);
+    if (!panel) return res.status(502).json({ error: "Not enough price history to compute correlations." });
+    const result = await cached(`cw:structure:${market}:${days}:${basis}:${estimator}:${panel.dates.at(-1)}`, 10 * 60_000, async () =>
+      structure(panel, days, basis, estimator)
+    );
+    const list = await getLiveTickersList();
+    const meta = new Map(list.map((t) => [t.id, t]));
+    const nodes = result.ids.map((id, i) => {
+      const t = meta.get(id);
+      return {
+        id,
+        name: t?.name ?? id,
+        sector: t?.sector ?? "Other",
+        beta: result.betas[i],
+        cluster: result.clusters.labels[i],
+        mktCap: t?.mktCapValue ?? null,
+        loadings: result.spectrum.loadings.map((v) => v[i]),
+        ...result.centrality[i],
+      };
+    });
+    res.json({ market, days, missing: panel.missing, asOf: new Date().toISOString(), nodes, ...result });
+  } catch (err: any) {
+    console.error("[API] Correlation structure failed:", err);
+    res.status(500).json({ error: "Failed computing correlation structure" });
+  }
+});
+
+// GET /api/correlation-web/dynamics?market=US|IN
+// Rolling 60-session regime metrics (average correlation, absorption ratio, MST length and survival).
+router.get("/api/correlation-web/dynamics", async (req: Request, res: Response) => {
+  const market: Market = req.query.market === "IN" ? "IN" : "US";
+  try {
+    const panel = await loadPanel(market);
+    if (!panel) return res.status(502).json({ error: "Not enough price history for regime metrics." });
+    if (panel.dates.length < 80) return res.status(502).json({ error: "Not enough history for rolling windows yet." });
+    const result = await cached(`cw:dynamics:${market}:${panel.dates.at(-1)}`, 10 * 60_000, async () => dynamics(panel));
+    res.json({ market, ...result });
+  } catch (err: any) {
+    console.error("[API] Correlation dynamics failed:", err);
+    res.status(500).json({ error: "Failed computing regime metrics" });
+  }
+});
+
+// GET /api/correlation-web/pair?market=US|IN&a=NVDA&b=AMD&days=90
+// Rolling correlation (raw and market-adjusted) and the lead-lag profile of two stocks.
+router.get("/api/correlation-web/pair", async (req: Request, res: Response) => {
+  const market: Market = req.query.market === "IN" ? "IN" : "US";
+  const a = String(req.query.a || "").toUpperCase();
+  const b = String(req.query.b || "").toUpperCase();
+  const days = [30, 90, 250].includes(Number(req.query.days)) ? Number(req.query.days) : 90;
+  try {
+    const panel = await loadPanel(market);
+    if (!panel) return res.status(502).json({ error: "Not enough price history." });
+    const result = pair(panel, a, b, days);
+    if (!result) return res.status(404).json({ error: `No price history for ${a} and ${b} in this market.` });
+    res.json(result);
+  } catch (err: any) {
+    console.error(`[API] Pair analysis failed for ${a}/${b}:`, err);
+    res.status(500).json({ error: "Pair analysis failed" });
   }
 });
 
