@@ -132,6 +132,11 @@
   border-color: var(--gold);
   color: var(--gold-pale);
 }
+.lq-header__cta--quiet {
+  border-color: transparent;
+  background: none;
+  backdrop-filter: none;
+}
 
 /* Floating square marker. Its colour follows the section in view (data-theme on .lq). */
 .lq-marker {
@@ -457,6 +462,23 @@
 }
 .lq-form__msg[data-kind="info"] {
   color: var(--fg-muted);
+}
+.lq-gate__ctas {
+  margin-top: 40px;
+  margin-bottom: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+.lq-gate__login {
+  min-width: 140px;
+  justify-content: center;
+  border-color: var(--line);
+}
+.lq-gate__login:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--gold-pale);
 }
 .lq-gate__note {
   margin-top: 6px;

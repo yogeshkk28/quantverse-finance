@@ -1,4 +1,4 @@
-import React, { FormEvent, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -10,16 +10,16 @@ import { wormhole, Wormhole } from "../canvas/wormhole";
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
 /**
- * "Enter the Wormhole": the email gate. The tunnel speeds up as the section
- * scrolls through view; a successful sign-up plays a warp, then opens the terminal.
+ * "Enter the Wormhole": the account gate. The tunnel speeds up as the section
+ * scrolls through view. Signed-in visitors warp straight into the terminal;
+ * everyone else is sent to create an account or log in.
  */
 export default function WormholeGate({ reduced }: { reduced: boolean }) {
-  const { user, enter } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const sectionRef = useRef<HTMLElement>(null);
   const tunnel = useRef<Wormhole | null>(null);
-  const [status, setStatus] = useState<"idle" | "sending" | "warping">("idle");
-  const [error, setError] = useState<string | null>(null);
+  const [warping, setWarping] = useState(false);
 
   useGSAP(
     () => {
@@ -35,27 +35,13 @@ export default function WormholeGate({ reduced }: { reduced: boolean }) {
   );
 
   async function goIn() {
-    setStatus("warping");
+    setWarping(true);
     // Load the terminal while the tunnel plays, so nothing blinks between the two.
     import("../../App").catch(() => {});
     // The full tunnel acceleration plays here, then the terminal carries on
     // with Freefall, Emergence and Arrival.
     await tunnel.current?.warp(1200);
     navigate("/app/dashboard", { state: { via: "wormhole" } });
-  }
-
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const email = String(new FormData(e.currentTarget).get("email") || "");
-    setError(null);
-    setStatus("sending");
-    const result = await enter(email);
-    if (!result.ok) {
-      setStatus("idle");
-      setError(result.error);
-      return;
-    }
-    await goIn();
   }
 
   return (
@@ -72,52 +58,39 @@ export default function WormholeGate({ reduced }: { reduced: boolean }) {
         onReady={(loop) => (tunnel.current = loop as Wormhole)}
       />
       <div className="lq-gate__inner">
-        <p className="lq-eyebrow">Early access</p>
+        <p className="lq-eyebrow">Paper trading account</p>
         <h2 id="gate-title" className="lq-statement">
           Enter the Wormhole.
         </h2>
 
         {user ? (
           <>
-            <p className="lq-body">You're signed in as {user.email}. The terminal is one step away.</p>
+            <p className="lq-body">Welcome back, {user.fullName.split(" ")[0]}. Your paper portfolio is waiting.</p>
             <button
               type="button"
               className="lq-btn lq-btn--gold"
               style={{ marginTop: 40 }}
               onClick={goIn}
-              disabled={status === "warping"}
+              disabled={warping}
             >
-              Enter the terminal <span className="lq-btn__arrow" aria-hidden="true">→</span>
+              {warping ? "Warping…" : "Enter the terminal"} <span className="lq-btn__arrow" aria-hidden="true">→</span>
             </button>
           </>
         ) : (
           <>
-            <p className="lq-body">Leave your email to open the terminal. No password, no card.</p>
-            <form className="lq-form" onSubmit={onSubmit} noValidate>
-              <label htmlFor="gate-email" className="sr-only">
-                Email address
-              </label>
-              <input
-                id="gate-email"
-                name="email"
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                placeholder="you@example.com"
-                required
-                aria-invalid={error ? true : undefined}
-                aria-describedby="gate-msg"
-              />
-              <button type="submit" className="lq-btn lq-btn--gold" disabled={status !== "idle"}>
-                {status === "idle" ? "Enter" : status === "sending" ? "Opening…" : "Warping…"}
-                <span className="lq-btn__arrow" aria-hidden="true">→</span>
-              </button>
-            </form>
-            <p id="gate-msg" className="lq-form__msg" data-kind={error ? "error" : "info"} role="status" aria-live="polite">
-              {error ?? ""}
+            <p className="lq-body">
+              Create a free account to start trading US and Indian markets with virtual money.
             </p>
+            <div className="lq-gate__ctas">
+              <Link to="/signup" className="lq-btn lq-btn--gold">
+                Create account <span className="lq-btn__arrow" aria-hidden="true">→</span>
+              </Link>
+              <Link to="/login" className="lq-btn lq-gate__login">
+                Log in
+              </Link>
+            </div>
             <p className="lq-gate__note">
-              Early preview. Your email is only used to let you in. <Link to="/privacy">Privacy policy</Link>
+              Practice money only. No card, no real brokerage. <Link to="/privacy">Privacy policy</Link>
             </p>
           </>
         )}

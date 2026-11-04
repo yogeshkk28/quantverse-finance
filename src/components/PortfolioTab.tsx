@@ -1,20 +1,20 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import { Ticker } from "../types";
+import type { Portfolio } from "../app/usePortfolio";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import { TrendingUp, TrendingDown, RefreshCw, BarChart2, PieChart as PieIcon, Activity } from "lucide-react";
 
 interface PortfolioTabProps {
   tickers: Ticker[];
-  portfolio: {
-    cash: number;
-    positions: { [tickerId: string]: { qty: number; avgCost: number } };
-  };
+  portfolio: Portfolio;
   onSelectTicker: (tickerId: string) => void;
   onClearPortfolio?: () => void;
   onAlertMessage?: (msg: string) => void;
+  /** Saves today's account value to the user's equity curve. */
+  onRecordNav?: (value: number) => void;
 }
 
-export default function PortfolioTab({ tickers, portfolio, onSelectTicker, onClearPortfolio, onAlertMessage }: PortfolioTabProps) {
+export default function PortfolioTab({ tickers, portfolio, onSelectTicker, onClearPortfolio, onAlertMessage, onRecordNav }: PortfolioTabProps) {
   
   // Calculate allocations and holdings dynamically based on current live stock prices
   const holdings = useMemo(() => {
@@ -78,24 +78,15 @@ export default function PortfolioTab({ tickers, portfolio, onSelectTicker, onCle
   // Sector colors matching the premium theme palette with elegant gold variants
   const SECTOR_COLORS = ["#D4AF37", "#F5E6CA", "#9A7B31", "#3b82f6", "#22c55e", "#64748b"];
 
-  // Real equity curve: one snapshot per day of the paper account's value, kept on this device.
-  const growthCurve = useMemo(() => {
-    const KEY = "lumina_quant_nav";
-    let snaps: { date: string; Value: number }[] = [];
-    try {
-      const raw = JSON.parse(localStorage.getItem(KEY) || "[]");
-      if (Array.isArray(raw)) snaps = raw;
-    } catch {}
-    const today = new Date().toISOString().slice(0, 10);
-    const value = parseFloat(netPortfolioValue.toFixed(2));
-    if (Number.isFinite(value) && value > 0) {
-      snaps = snaps.filter((p) => p.date !== today).concat({ date: today, Value: value }).slice(-90);
-      try {
-        localStorage.setItem(KEY, JSON.stringify(snaps));
-      } catch {}
-    }
-    return snaps.slice(-30);
-  }, [netPortfolioValue]);
+  // Real equity curve: one point per day of the paper account's value, saved to the account.
+  useEffect(() => {
+    // Wait for prices so the snapshot doesn't record positions at cost.
+    if (tickers.length && Number.isFinite(netPortfolioValue) && netPortfolioValue > 0) onRecordNav?.(netPortfolioValue);
+  }, [netPortfolioValue, tickers.length, onRecordNav]);
+  const growthCurve = useMemo(
+    () => (portfolio.nav ?? []).slice(-30).map((p) => ({ date: p.date, Value: p.value })),
+    [portfolio.nav]
+  );
 
   return (
     <div className="flex-grow flex flex-col gap-6 w-full max-w-[1600px] mx-auto px-6 py-8 font-sans">
@@ -138,13 +129,15 @@ export default function PortfolioTab({ tickers, portfolio, onSelectTicker, onCle
         <div className="lq-panel  p-5 shadow-xl flex flex-col justify-between bg-gradient-to-b from-white/[0.03] to-transparent">
           <div>
             <span className="font-mono text-[11px] tracking-[0.16em] text-lq-muted uppercase font-bold block">Paper account controls</span>
-            <p className="text-[11px] text-lq-muted mt-1 select-none">Resets portfolio balance to initial $100,000.00 cash benchmark.</p>
+            <p className="text-[11px] text-lq-muted mt-1 select-none">
+              Clears positions and trade history and restores your ${portfolio.startingCash.toLocaleString(undefined, { minimumFractionDigits: 2 })} starting balance.
+            </p>
           </div>
           <button 
             type="button"
             onClick={() => {
+              if (!window.confirm("Reset your paper portfolio? Positions and trade history will be cleared.")) return;
               onClearPortfolio?.();
-              onAlertMessage?.("Reset portfolio to original standard state ($100,000.00 cash).");
             }}
             className="w-full bg-lq-surface hover:bg-lq-surface-2 border border-lq-line text-lq-gold py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer text-center block whitespace-nowrap mt-3 uppercase tracking-wider duration-200"
           >
@@ -163,7 +156,7 @@ export default function PortfolioTab({ tickers, portfolio, onSelectTicker, onCle
             <h3 className="font-serif text-sm font-light tracking-wide text-lq-text flex items-center gap-2">
               <BarChart2 className="w-4 h-4 text-lq-gold" /> Equity curve (last 30 days)
             </h3>
-            <span className="text-[11px] text-lq-gold font-mono font-bold tracking-[0.15em] uppercase">Recorded on this device</span>
+            <span className="text-[11px] text-lq-gold font-mono font-bold tracking-[0.15em] uppercase">Saved to your account</span>
           </div>
 
           {growthCurve.length < 2 && (

@@ -6,6 +6,8 @@ import ScreenerTab from "./components/ScreenerTab";
 import ChartsTab from "./components/ChartsTab";
 import PortfolioTab from "./components/PortfolioTab";
 import CorrelationWebTab from "./components/CorrelationWebTab";
+import AccountTab from "./components/AccountTab";
+import { usePortfolio } from "./app/usePortfolio";
 import { Ticker, ActiveTab } from "./types";
 import { AlertCircle, CheckCircle2, X } from "lucide-react";
 import MarketStrip from "./components/MarketStrip";
@@ -15,7 +17,7 @@ import WormholeTransition from "./app/WormholeTransition";
 import { useReducedMotion } from "./landing/hooks";
 
 
-const TABS: ActiveTab[] = ["dashboard", "screener", "charts", "portfolio", "signals"];
+const TABS: ActiveTab[] = ["dashboard", "screener", "charts", "portfolio", "signals", "account"];
 
 export default function App() {
   // The active tab lives in the URL (/app/screener, /app/charts, …) so views are linkable.
@@ -38,29 +40,8 @@ export default function App() {
   const [tickers, setTickers] = useState<Ticker[]>([]);
   const [activeTickerId, setActiveTickerId] = useState<string>("NVDA");
   
-  // Real Portfolio State persisted offline first
-  const [portfolio, setPortfolio] = useState<{
-    cash: number;
-    positions: { [tickerId: string]: { qty: number; avgCost: number } };
-  }>(() => {
-    const saved = localStorage.getItem("lumina_quant_portfolio");
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
-    }
-    return {
-      cash: 100000,
-      positions: {
-        "NVDA": { qty: 25, avgCost: 750.00 },
-        "AAPL": { qty: 40, avgCost: 175.50 },
-        "RELIANCE": { qty: 15, avgCost: 2420.00 }
-      }
-    };
-  });
-
-  // Offline persistence of portfolio state
-  useEffect(() => {
-    localStorage.setItem("lumina_quant_portfolio", JSON.stringify(portfolio));
-  }, [portfolio]);
+  // The paper portfolio belongs to the signed-in account and lives on the server.
+  const { portfolio, trade, reset, recordNav } = usePortfolio();
 
   // System Notification log list state
   const [systemAlerts, setSystemAlerts] = useState<Array<{ id: number; text: string; type: "success" | "info" | "warn"; stamp: string }>>([
@@ -124,78 +105,30 @@ export default function App() {
   };
 
   // Portfolio reset callback
-  const handleClearPortfolioData = () => {
-    setPortfolio({
-      cash: 100000,
-      positions: {}
-    });
-    triggerNotificationAlert("Paper portfolio reset to $100,000.00 virtual cash.", "warn");
+  const handleClearPortfolioData = async () => {
+    const r = await reset();
+    if (!r.ok) return triggerNotificationAlert(`Couldn't reset the paper portfolio: ${r.error}`, "warn");
+    triggerNotificationAlert(
+      `Paper portfolio reset to $${r.portfolio.startingCash.toLocaleString(undefined, { minimumFractionDigits: 2 })} virtual cash.`,
+      "warn"
+    );
   };
 
-  // Handles executing trades and logs confirmations back onto portfolio & alerts
-  const handleExecutionTransaction = (ticker: string, side: "buy" | "sell", orderType: string, qty: number, price: number) => {
+  // Sends the order to the server, which checks cash and holdings and records the fill.
+  const handleExecutionTransaction = async (ticker: string, side: "buy" | "sell", orderType: string, qty: number, price: number) => {
     const assetId = ticker.toUpperCase();
-    const totalCostValue = parseFloat((qty * price).toFixed(2));
-
-    if (side === "buy") {
-      if (portfolio.cash < totalCostValue) {
-        triggerNotificationAlert(`Order rejected: not enough virtual cash for buy order. (Cost: $${totalCostValue} vs Available: $${portfolio.cash.toFixed(2)})`, "warn");
-        return;
-      }
-
-      // Execute buy Order
-      setPortfolio((prev) => {
-        const currentPos = prev.positions[assetId] || { qty: 0, avgCost: 0 };
-        const newQty = currentPos.qty + qty;
-        
-        // Calculate weighted average cost basis
-        const currentTotalCost = currentPos.qty * currentPos.avgCost;
-        const incomingCost = qty * price;
-        const newAvgCost = newQty > 0 ? parseFloat(((currentTotalCost + incomingCost) / newQty).toFixed(2)) : price;
-
-        return {
-          cash: parseFloat((prev.cash - totalCostValue).toFixed(2)),
-          positions: {
-            ...prev.positions,
-            [assetId]: {
-              qty: newQty,
-              avgCost: newAvgCost
-            }
-          }
-        };
-      });
-
-      triggerNotificationAlert(`Paper order filled: bought ${qty} shares of ${assetId} at $${price.toFixed(2)}. Net cost: $${totalCostValue.toLocaleString()}.`, "success");
-    } else {
-      // Execute sell order
-      const holding = portfolio.positions[assetId];
-      if (!holding || holding.qty < qty) {
-        triggerNotificationAlert(`Order rejected: not enough ${assetId} in the paper portfolio to sell.`, "warn");
-        return;
-      }
-
-      setPortfolio((prev) => {
-        const currentPos = prev.positions[assetId];
-        const newQty = currentPos.qty - qty;
-        const newPositions = { ...prev.positions };
-        
-        if (newQty <= 0) {
-          delete newPositions[assetId];
-        } else {
-          newPositions[assetId] = {
-            qty: newQty,
-            avgCost: currentPos.avgCost
-          };
-        }
-
-        return {
-          cash: parseFloat((prev.cash + totalCostValue).toFixed(2)),
-          positions: newPositions
-        };
-      });
-
-      triggerNotificationAlert(`Paper order filled: sold ${qty} shares of ${assetId} at $${price.toFixed(2)}. Net proceeds: $${totalCostValue.toLocaleString()}.`, "success");
+    const r = await trade({ ticker: assetId, side, orderType, qty, price });
+    if (!r.ok) {
+      triggerNotificationAlert(`Order rejected: ${r.error}`, "warn");
+      return;
     }
+    const total = (qty * price).toLocaleString(undefined, { maximumFractionDigits: 2 });
+    triggerNotificationAlert(
+      side === "buy"
+        ? `Paper order filled: bought ${qty} shares of ${assetId} at $${price.toFixed(2)}. Net cost: $${total}.`
+        : `Paper order filled: sold ${qty} shares of ${assetId} at $${price.toFixed(2)}. Net proceeds: $${total}.`,
+      "success"
+    );
   };
 
   return (
@@ -282,6 +215,23 @@ export default function App() {
             onSelectTicker={handleSelectTicker}
             onClearPortfolio={handleClearPortfolioData}
             onAlertMessage={(msg) => triggerNotificationAlert(msg, "info")}
+            onRecordNav={recordNav}
+          />
+        )}
+
+        {activeTab === "account" && (
+          <AccountTab
+            portfolio={portfolio}
+            onResetPortfolio={async (startingCash) => {
+              const r = await reset(startingCash);
+              if (r.ok) {
+                triggerNotificationAlert(
+                  `Paper portfolio reset to $${r.portfolio.startingCash.toLocaleString()} virtual cash.`,
+                  "warn"
+                );
+              }
+              return r;
+            }}
           />
         )}
 

@@ -84,7 +84,7 @@ export interface EventStudy {
   peers: PeerReaction[];
 }
 
-export type ActiveTab = "dashboard" | "screener" | "charts" | "portfolio" | "signals";
+export type ActiveTab = "dashboard" | "screener" | "charts" | "portfolio" | "signals" | "account";
 
 /** Where a screener row's numbers came from. "simulated" is never real market data. */
 export type ScreenerSource = "live" | "partial" | "simulated";
