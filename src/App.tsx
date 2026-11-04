@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Header from "./components/Header";
 import DashboardTab from "./components/DashboardTab";
 import ScreenerTab from "./components/ScreenerTab";
@@ -7,7 +7,13 @@ import ChartsTab from "./components/ChartsTab";
 import PortfolioTab from "./components/PortfolioTab";
 import CorrelationWebTab from "./components/CorrelationWebTab";
 import { Ticker, ActiveTab } from "./types";
-import { AlertCircle, Terminal, CheckCircle2, ChevronRight, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, X } from "lucide-react";
+import MarketStrip from "./components/MarketStrip";
+import SiteFooter from "./components/SiteFooter";
+import Cosmos from "./theme/Cosmos";
+import WormholeTransition from "./app/WormholeTransition";
+import { useReducedMotion } from "./landing/hooks";
+
 
 const TABS: ActiveTab[] = ["dashboard", "screener", "charts", "portfolio", "signals"];
 
@@ -17,6 +23,14 @@ export default function App() {
   const navigate = useNavigate();
   const activeTab: ActiveTab = TABS.includes(tab as ActiveTab) ? (tab as ActiveTab) : "dashboard";
   const setActiveTab = (next: ActiveTab) => navigate(`/app/${next}`);
+  const location = useLocation();
+  const reduced = useReducedMotion();
+
+  // The wormhole jump plays every time someone enters from the landing gate
+  // (or with ?warp on any /app URL).
+  const [fromGate] = useState(() => (location.state as { via?: string } | null)?.via === "wormhole");
+  const [warping, setWarping] = useState(() => fromGate || new URLSearchParams(location.search).has("warp"));
+  const [arrived, setArrived] = useState(!warping);
   // Arriving from the landing page keeps its scroll position, so start each view at the top.
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -50,8 +64,12 @@ export default function App() {
 
   // System Notification log list state
   const [systemAlerts, setSystemAlerts] = useState<Array<{ id: number; text: string; type: "success" | "info" | "warn"; stamp: string }>>([
-    { id: 1, text: "Lumina Quant clearing brokerage system online. Market APIs responsive.", type: "success", stamp: "10:30 AM" },
-    { id: 2, text: "Gemini-2.5-flash strategic analysis models calibrated successfully.", type: "info", stamp: "10:32 AM" },
+    {
+      id: 1,
+      text: "Paper trading account ready. Orders fill against delayed market prices using virtual cash only.",
+      type: "info",
+      stamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    },
   ]);
 
   // Active notification toaster alert (shown at the top of the interface)
@@ -111,7 +129,7 @@ export default function App() {
       cash: 100000,
       positions: {}
     });
-    triggerNotificationAlert("Portfolio reset to $100,000.00 cash.", "warn");
+    triggerNotificationAlert("Paper portfolio reset to $100,000.00 virtual cash.", "warn");
   };
 
   // Handles executing trades and logs confirmations back onto portfolio & alerts
@@ -121,7 +139,7 @@ export default function App() {
 
     if (side === "buy") {
       if (portfolio.cash < totalCostValue) {
-        triggerNotificationAlert(`Execution Rejected: Insufficient cash balance for buy order. (Cost: $${totalCostValue} vs Available: $${portfolio.cash.toFixed(2)})`, "warn");
+        triggerNotificationAlert(`Order rejected: not enough virtual cash for buy order. (Cost: $${totalCostValue} vs Available: $${portfolio.cash.toFixed(2)})`, "warn");
         return;
       }
 
@@ -147,12 +165,12 @@ export default function App() {
         };
       });
 
-      triggerNotificationAlert(`Order Executed: Bought ${qty} shares of ${assetId} at $${price.toFixed(2)} limit. Net cost: $${totalCostValue.toLocaleString()}.`, "success");
+      triggerNotificationAlert(`Paper order filled: bought ${qty} shares of ${assetId} at $${price.toFixed(2)}. Net cost: $${totalCostValue.toLocaleString()}.`, "success");
     } else {
       // Execute sell order
       const holding = portfolio.positions[assetId];
       if (!holding || holding.qty < qty) {
-        triggerNotificationAlert(`Execution Rejected: Insufficient holdings of ${assetId} to fill short or sell order.`, "warn");
+        triggerNotificationAlert(`Order rejected: not enough ${assetId} in the paper portfolio to sell.`, "warn");
         return;
       }
 
@@ -176,67 +194,81 @@ export default function App() {
         };
       });
 
-      triggerNotificationAlert(`Order Executed: Sold ${qty} shares of ${assetId} at $${price.toFixed(2)} limits. Net proceeds: $${totalCostValue.toLocaleString()}.`, "success");
+      triggerNotificationAlert(`Paper order filled: sold ${qty} shares of ${assetId} at $${price.toFixed(2)}. Net proceeds: $${totalCostValue.toLocaleString()}.`, "success");
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#070707] text-[#e5e2e1] font-sans flex flex-col selection:bg-amber-500/30 selection:text-amber-400">
-      
-      {/* HEADER NAVBAR */}
-      <Header 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
+    <div className={`relative min-h-screen bg-lq-bg text-lq-text font-sans flex flex-col ${arrived ? "" : "lq-hold"}`}>
+      <Cosmos />
+
+      {warping && (
+        <WormholeTransition
+          reduced={reduced}
+          fromGate={fromGate}
+          onArrive={() => setArrived(true)}
+          onDone={() => {
+            setWarping(false);
+            // Drop the router state so a refresh doesn't replay the jump.
+            navigate(location.pathname, { replace: true, state: null });
+          }}
+        />
+      )}
+
+      <Header
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
         onNotificationsClick={() => setLogsDrawerOpen(true)}
       />
+      <MarketStrip />
 
-      {/* FLOAT TOAST SYSTEM NOTIFIER */}
+      {/* Paper-trade confirmations */}
       {toastAlert && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4 pointer-events-auto transition-transform duration-300">
-          <div className="bg-[#131111]/95 border border-white/10 rounded-xl p-4 flex gap-3.5 items-start shadow-[0_10px_25px_rgba(0,0,0,0.8)] backdrop-blur-md">
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4" role="status" aria-live="polite">
+          <div className="lq-panel p-4 flex gap-3.5 items-start">
             {toastAlert.type === "success" ? (
-              <CheckCircle2 className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+              <CheckCircle2 className="w-5 h-5 text-lq-gold flex-shrink-0 mt-0.5" />
             ) : (
-              <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="w-5 h-5 text-lq-gold-soft flex-shrink-0 mt-0.5" />
             )}
-            
             <div className="flex-1 min-w-0">
-              <span className="font-mono text-[9px] text-gray-500 font-bold uppercase tracking-wider block">Transactional log</span>
-              <p className="text-xs text-gray-200 mt-1 select-text leading-relaxed">{toastAlert.text}</p>
+              <span className="lq-lbl block">Paper trading · simulated</span>
+              <p className="text-[13px] text-lq-text-2 mt-1 mb-0 leading-relaxed">{toastAlert.text}</p>
             </div>
-
-            <button 
+            <button
+              type="button"
+              aria-label="Dismiss"
               onClick={() => setToastAlert(null)}
-              className="text-gray-500 hover:text-white transition-colors"
+              className="text-lq-muted hover:text-lq-text transition-colors"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
       )}
 
-      {/* RENDER ACTIVE TAB */}
-      <main className="flex-1 w-full flex flex-col">
+      <main className="relative z-10 flex-1 w-full flex flex-col">
         {activeTab === "dashboard" && (
           <DashboardTab
             tickers={tickers}
+            portfolio={portfolio}
             onSelectTicker={handleSelectTicker}
-            onOpenWeb={() => setActiveTab("signals")}
+            onOpenTab={setActiveTab}
           />
         )}
 
         {activeTab === "screener" && (
-          <ScreenerTab 
-            tickers={tickers} 
-            onSelectTicker={handleSelectTicker} 
+          <ScreenerTab
+            tickers={tickers}
+            onSelectTicker={handleSelectTicker}
             onAlertMessage={(msg) => triggerNotificationAlert(msg, "info")}
           />
         )}
 
         {activeTab === "charts" && (
-          <ChartsTab 
-            tickers={tickers} 
-            activeTickerId={activeTickerId} 
+          <ChartsTab
+            tickers={tickers}
+            activeTickerId={activeTickerId}
             onSelectTicker={(tk) => setActiveTickerId(tk)}
             onAlertMessage={(msg) => triggerNotificationAlert(msg, "info")}
             onTradeExectued={handleExecutionTransaction}
@@ -244,9 +276,9 @@ export default function App() {
         )}
 
         {activeTab === "portfolio" && (
-          <PortfolioTab 
-            tickers={tickers} 
-            portfolio={portfolio} 
+          <PortfolioTab
+            tickers={tickers}
+            portfolio={portfolio}
             onSelectTicker={handleSelectTicker}
             onClearPortfolio={handleClearPortfolioData}
             onAlertMessage={(msg) => triggerNotificationAlert(msg, "info")}
@@ -254,75 +286,69 @@ export default function App() {
         )}
 
         {activeTab === "signals" && (
-          <CorrelationWebTab 
-            tickers={tickers} 
+          <CorrelationWebTab
+            tickers={tickers}
             onSelectTicker={handleSelectTicker}
             onAlertMessage={(msg) => triggerNotificationAlert(msg, "info")}
           />
         )}
       </main>
 
-      {/* NOTIFICATIONS LOGS SYSTEM SIDE DRAWER */}
+      <SiteFooter onOpenTab={setActiveTab} />
+
+      {/* Activity log drawer */}
       {logsDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm select-none">
-          {/* Overlay dismissal */}
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm">
           <div className="absolute inset-0" onClick={() => setLogsDrawerOpen(false)} />
-
-          <aside className="relative w-full max-w-sm bg-[#111] border-l border-white/10 flex flex-col justify-between h-full shadow-2xl z-20">
-            <div>
-              {/* Drawer Header */}
-              <div className="flex justify-between items-center p-5 border-b border-white/10 bg-[#0c0c0c]">
-                <div className="flex items-center gap-2">
-                  <Terminal className="w-5 h-5 text-amber-500 animate-pulse" />
-                  <h3 className="font-sans font-black text-white text-base uppercase tracking-tight m-0">Clearing System Logs</h3>
-                </div>
-                <button 
-                  onClick={() => setLogsDrawerOpen(false)}
-                  className="text-gray-400 hover:text-white transition-colors p-1"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+          <aside
+            aria-labelledby="lq-log-title"
+            className="relative w-full max-w-sm bg-lq-bg-2 border-l border-lq-line flex flex-col h-full shadow-2xl z-20"
+          >
+            <div className="flex justify-between items-center p-5 border-b border-lq-line">
+              <div className="flex items-center gap-2.5">
+                <span className="lq-marker" aria-hidden="true" />
+                <h2 id="lq-log-title" className="lq-h3">
+                  Activity log
+                </h2>
               </div>
+              <button
+                type="button"
+                aria-label="Close activity log"
+                onClick={() => setLogsDrawerOpen(false)}
+                className="text-lq-muted hover:text-lq-text transition-colors p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-              {/* Drawer list */}
-              <div className="p-5 flex flex-col gap-4 max-h-[75vh] overflow-y-auto">
-                {systemAlerts.map((alert) => (
-                  <div 
-                    key={alert.id} 
-                    className="p-3.5 bg-black/40 border border-white/5 rounded-xl flex items-start gap-3 hover:border-white/10 transition-colors"
-                  >
-                    <div className="mt-0.5 flex-shrink-0">
-                      {alert.type === "success" ? (
-                        <span className="w-2 h-2 rounded-full inline-block bg-blue-500" />
-                      ) : alert.type === "warn" ? (
-                        <span className="w-2 h-2 rounded-full inline-block bg-red-500 animate-ping" />
-                      ) : (
-                        <span className="w-2 h-2 rounded-full inline-block bg-amber-500" />
-                      )}
+            <ul className="p-5 flex flex-col gap-3 flex-1 overflow-y-auto m-0 list-none">
+              {systemAlerts.map((alert) => (
+                <li key={alert.id} className="lq-card p-3.5 flex items-start gap-3">
+                  <span
+                    aria-hidden="true"
+                    className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${
+                      alert.type === "warn" ? "bg-lq-gold-soft" : "bg-lq-gold"
+                    }`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-center">
+                      <span className="lq-num text-[11px] text-lq-muted">{alert.stamp}</span>
+                      <span className="lq-lbl text-[10px]">
+                        {alert.type === "warn" ? "Notice" : alert.type === "success" ? "Filled" : "Info"}
+                      </span>
                     </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-center select-none">
-                        <span className="font-mono text-[9px] text-gray-500 font-bold uppercase tracking-wider">Stamp: {alert.stamp}</span>
-                        <span className={`font-mono text-[8px] uppercase px-1.5 py-0.2 rounded font-bold ${
-                          alert.type === "success" ? "text-blue-400 bg-blue-500/10" : alert.type === "warn" ? "text-red-400 bg-red-400/10" : "text-amber-400 bg-amber-400/10"
-                        }`}>{alert.type}</span>
-                      </div>
-                      <p className="text-xs text-gray-300 mt-1 select-text leading-relaxed font-sans">{alert.text}</p>
-                    </div>
+                    <p className="text-[13px] text-lq-text-2 mt-1 mb-0 leading-relaxed">{alert.text}</p>
                   </div>
-                ))}
-              </div>
-            </div>
+                </li>
+              ))}
+            </ul>
 
-            {/* Bottom info signature */}
-            <div className="p-5 border-t border-white/10 bg-[#0c0c0c] select-none text-center">
-              <span className="font-mono text-[9px] text-gray-600 block">LUMINA CLEARING HOUSES CORE INC</span>
-            </div>
+            <p className="p-5 border-t border-lq-line text-[12px] text-lq-muted m-0">
+              Every order here is a simulation with virtual money. Nothing is sent to a broker or exchange.
+            </p>
           </aside>
         </div>
       )}
-
     </div>
   );
 }

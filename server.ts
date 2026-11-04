@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import apiRouter from "./server/routes";
 import authRouter from "./server/auth";
+import dashboardRouter from "./server/dashboard";
 import { getLiveGlobalIndices } from "./server/apiClients";
 dotenv.config();
 
@@ -17,6 +18,7 @@ const PORT = 3000;
 // Register modular REST API endpoints
 app.use(authRouter);
 app.use(apiRouter);
+app.use(dashboardRouter);
 app.get("/api/global-indices", async (req, res) => {
   try {
     const indices = await getLiveGlobalIndices();

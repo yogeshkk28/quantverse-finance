@@ -19,19 +19,19 @@ export default class ErrorBoundary extends React.Component<{ children: React.Rea
   render() {
     if (!this.state.error) return this.props.children;
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center p-6">
+      <div className="min-h-screen bg-lq-bg text-lq-text flex items-center justify-center p-6">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-2xl font-light">Something went wrong on this page.</h1>
-          <p className="text-sm text-white/60">{this.state.error.message}</p>
+          <h1 className="lq-h2">Something went wrong on this page.</h1>
+          <p className="text-sm text-lq-muted">{this.state.error.message}</p>
           <div className="flex gap-3 justify-center">
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="px-4 py-2 rounded-full border border-[#D4AF37] text-[#D4AF37] text-sm"
+              className="lq-btn"
             >
               Reload
             </button>
-            <a href="/" className="px-4 py-2 rounded-full border border-white/20 text-sm">
+            <a href="/" className="lq-btn lq-btn--ghost">
               Back to home
             </a>
           </div>

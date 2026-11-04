@@ -17,6 +17,16 @@ for US and Indian (NSE) stocks. React 19 + Vite front end served by an Express s
 This is placeholder auth (`server/auth.ts`): no password, a 30-day session cookie, and users stored in
 `server/data/auth.json` (gitignored). It gates the UI only; the `/api` data routes stay open.
 
+## Theme: Event Horizon
+
+Every colour, font and shared part lives in one file, `src/theme/event-horizon.css`. It defines the
+`--lq-*` CSS variables, Tailwind utilities that read them (`bg-lq-surface`, `text-lq-gold`, `border-lq-line`, …)
+and shared classes (`.lq-panel`, `.lq-card`, `.lq-chip`, `.lq-btn`, `.lq-lbl`, `.lq-table`). Gold marks what you can
+act on, violet is atmosphere only, green and red only show price direction. Add a token there before using a new colour.
+
+Arriving from the landing gate plays the wormhole transition (`src/app/WormholeTransition.tsx`) every time;
+add `?warp` to any `/app` URL to replay it. Reduced-motion users get a short crossfade.
+
 ## How the Correlation Web works
 
 `server/impact.ts` builds the web from about two years of daily closes per market (`/api/correlation-web`):
