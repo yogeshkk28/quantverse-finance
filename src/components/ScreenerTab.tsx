@@ -280,7 +280,7 @@ export default function ScreenerTab({ onSelectTicker, onAlertMessage }: Screener
       {/* Title row */}
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 lq-rise">
         <div className="flex flex-col gap-1.5">
-          <span className="lq-lbl !text-lq-gold">Screener · {data?.universe ?? "—"} stocks · US and NSE</span>
+          <span className="lq-lbl !text-lq-gold">Screener · {data?.universe ?? "—"} stocks · US and India</span>
           <h1 className="lq-h1">Find the setup, then test it on paper</h1>
           <p className="text-[13.5px] text-lq-text-2 max-w-[720px]">
             {METRICS.length} metrics across valuation, performance, technicals, risk and factor scores. Pick a screen, narrow it down, and open any stock in Charts to place a practice trade.
@@ -534,7 +534,7 @@ export default function ScreenerTab({ onSelectTicker, onAlertMessage }: Screener
             {rows.length === 0 ? (
               <div className="py-24 flex flex-col items-center gap-3 text-lq-muted text-[13px]">
                 <Loader2 className="w-6 h-6 animate-spin text-lq-gold" />
-                Loading {data?.universe ?? 350}+ stocks…
+                Loading {data?.universe ?? 1300}+ stocks…
               </div>
             ) : matches.length === 0 ? (
               <div className="py-20 text-center flex flex-col items-center gap-3">

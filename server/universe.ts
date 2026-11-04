@@ -6,6 +6,7 @@
  * (NSE stocks carry the ".NS" suffix).
  */
 import { findScreenerEntry } from "./screenerUniverse";
+import { findSymbol } from "./symbolMaster";
 
 export type Market = "US" | "IN";
 
@@ -56,6 +57,6 @@ export const CURRENCY: Record<Market, string> = { US: "$", IN: "₹" };
 
 export function findEntry(idOrSymbol: string): UniverseEntry | undefined {
   const key = idOrSymbol.toUpperCase();
-  // Fall back to the screener's larger list so any screened stock can be charted.
-  return UNIVERSE.find((u) => u.id === key || u.symbol === key) ?? findScreenerEntry(key);
+  // Fall back to the screener's list, then to every listed US and Indian stock.
+  return UNIVERSE.find((u) => u.id === key || u.symbol === key) ?? findScreenerEntry(key) ?? findSymbol(key);
 }

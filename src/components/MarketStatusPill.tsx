@@ -1,13 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { formatWait, marketStatus, REGIONS, Region } from "../landing/marketHours";
+import { coveredStatus, formatWait } from "../landing/marketHours";
 
-const SHORT: Record<Region, string> = {
-  Americas: "AMER",
-  "Europe & Africa": "EMEA",
-  "Middle East": "MIDEAST",
-  "Asia-Pacific": "APAC",
-};
+/** The two markets Lumina covers, by the countries of their exchanges. */
+const MARKETS = [
+  { name: "United States", short: "US", country: "United States" },
+  { name: "India", short: "IN", country: "India" },
+];
 
 export function useNow(intervalMs = 30_000) {
   const [now, setNow] = useState(() => new Date());
@@ -18,20 +17,20 @@ export function useNow(intervalMs = 30_000) {
   return now;
 }
 
-/** Summary of the 20 largest exchanges, computed from the viewer's clock. */
+/** Summary of the US and Indian exchanges (Nasdaq, NYSE, NSE, BSE), from the viewer's clock. */
 export function useMarketSummary() {
   const now = useNow();
-  const status = marketStatus(now);
+  const status = coveredStatus(now);
   const live = status.filter((s) => s.state === "open").sort((a, b) => a.closesIn - b.closesIn);
   const next = status.filter((s) => s.state !== "open").sort((a, b) => a.opensIn - b.opensIn);
-  const regions = REGIONS.map((r) => {
-    const xs = status.filter((s) => s.region === r);
-    return { name: r, short: SHORT[r], open: xs.filter((s) => s.state === "open").length, total: xs.length };
+  const regions = MARKETS.map((m) => {
+    const xs = status.filter((s) => s.country === m.country);
+    return { name: m.name, short: m.short, open: xs.filter((s) => s.state === "open").length, total: xs.length };
   });
   return { now, status, live, next, regions, total: status.length };
 }
 
-/** "9/20 markets live" pill in the header, with the world clock in a popover. */
+/** "2/4 markets live" pill in the header (US and India exchanges), with details in a popover. */
 export default function MarketStatusPill() {
   const { now, live, next, regions, total } = useMarketSummary();
   const [open, setOpen] = useState(false);
@@ -84,12 +83,12 @@ export default function MarketStatusPill() {
             <span className="lq-lbl">Market status</span>
             <span className="lq-lbl lq-num">{utc} UTC</span>
           </div>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {regions.map((r) => (
               <div key={r.name} className="lq-card px-2 py-2 flex flex-col gap-1" title={r.name}>
                 <span className="lq-lbl text-[10px]">{r.short}</span>
-                <span className={`lq-num text-sm ${r.open ? "text-lq-up" : "text-lq-muted"}`}>
-                  {r.open}/{r.total}
+                <span className={`text-sm ${r.open ? "text-lq-up" : "text-lq-muted"}`}>
+                  {r.open ? "Open" : "Closed"}
                 </span>
               </div>
             ))}

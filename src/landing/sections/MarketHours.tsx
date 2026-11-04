@@ -89,7 +89,7 @@ export default function MarketHours() {
 
         <details className="lq-hours__all">
           <summary>
-            All 20 markets <span>{openCount} open now</span>
+            World market hours <span>{openCount} of 20 open now</span>
           </summary>
           {REGIONS.map((region) => (
             <div key={region} className="lq-hours__region">
@@ -110,17 +110,13 @@ export default function MarketHours() {
                         <span className="lq-hours__time">{s.localTime}</span>
                         <span className="lq-hours__tz">{s.state === "open" ? s.utcOffset : `opens ${formatWait(s.opensIn)}`}</span>
                       </span>
-                      <span className="lq-hours__badge" data-coverage={s.coverage}>
-                        {s.coverage === "covered" ? (
-                          <>
-                            Live data
-                            <br />
-                            Paper trading
-                          </>
-                        ) : (
-                          "Coming soon"
-                        )}
-                      </span>
+                      {s.coverage === "covered" && (
+                        <span className="lq-hours__badge" data-coverage={s.coverage}>
+                          Live data
+                          <br />
+                          Paper trading
+                        </span>
+                      )}
                     </li>
                   ))}
               </ul>
@@ -129,8 +125,8 @@ export default function MarketHours() {
         </details>
 
         <p className="lq-hours__note">
-          Lumina has live data for the US and NSE today, with more markets on the way. Regular hours on your clock;
-          exchange holidays not shown.
+          Lumina covers every listed stock in the US and India: Nasdaq, NYSE, NSE and BSE. Other markets are shown
+          for their hours only. Regular hours on your clock; exchange holidays not shown.
         </p>
       </div>
 

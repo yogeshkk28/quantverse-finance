@@ -1,7 +1,7 @@
 # Lumina Quant
 
 A quantitative finance terminal: dashboard, screener, charts, paper portfolio and a correlation web
-for US and Indian (NSE) stocks. React 19 + Vite front end served by an Express server that holds all API keys.
+for US and Indian stocks: every listed company on NASDAQ, NYSE, NYSE American, NSE and BSE. React 19 + Vite front end served by an Express server that holds all API keys.
 
 ## Run locally
 
@@ -48,7 +48,8 @@ All of this describes the past and is not a forecast.
 
 | Data | Source | Notes |
 | --- | --- | --- |
-| Prices, history, indicators | Yahoo Finance chart endpoint | US and NSE (`.NS`), delayed, no key, cached 5 min |
+| Prices, history, indicators | Yahoo Finance chart endpoint | US, NSE (`.NS`) and BSE (`.BO`), delayed, no key, cached 5 min |
+| Stock lists | Symbol master (see above) | Exchange listing files checked daily |
 | Real-time US prices | Finnhub (`FINNHUB_API`) | Optional, overrides Yahoo for US stocks |
 | P/E, ROE, market cap | Financial Modeling Prep (`FINANCIAL_MODELING_API`) | US only on the free plan; otherwise sample values marked `*` |
 | Macro strip | FRED (`FRED_API`) | CPI and GDP shown as year-over-year % |
@@ -56,4 +57,31 @@ All of this describes the past and is not a forecast.
 | News | NewsData.io (`NEWS_IO_API`) | |
 | AI analysis | Gemini (`GEMINI_API_KEY`) | |
 
-The tracked stocks live in `server/universe.ts`. Add a symbol there and it appears everywhere.
+## Stock universe
+
+Three layers, from widest to narrowest:
+
+| Layer | Size | Where | Used by |
+| --- | --- | --- | --- |
+| Symbol master | ≈11,000 stocks: NASDAQ, NYSE, NYSE American, NSE, plus BSE listings not on NSE | `server/symbols/master.json`, `server/symbolMaster.ts` | Search, quotes and charts for any stock |
+| Screener | ≈1,300: the hand-picked list plus US stocks of $10B and up and Indian mid and large caps | `server/screenerUniverse.ts` | `/api/screener` |
+| Tracked | 26 | `server/universe.ts` | Dashboard, sentiment, Correlation Web |
+
+Prices are never prefetched for the symbol master: a stock's quote and history come from Yahoo
+when someone opens it. Search and lookup are local and instant.
+
+- `searchSymbols(query, limit, market?)` in `server/symbolMaster.ts` ranks exact ticker, ticker prefix,
+  name prefix and word matches, larger companies first. `findSymbol(id)` resolves `MRF`, `MRF.NS`,
+  `NSE:MRF` or `BRK.B`.
+- `GET /api/quote/:id` returns a ticker (price, change, RSI, beta…) for any listed stock, `GET /api/symbols/:id`
+  resolves a listing without prices, and `GET /api/symbols/stats` gives counts and how fresh the list is.
+  `/api/history/:id` and `/api/chart/:id` accept any listed stock too.
+- Ids are the ticker without its exchange suffix (`AAPL`, `MRF`). When a US and an Indian stock share a
+  ticker, the larger keeps it and the other uses its full symbol (`HAL.NS`) or `<ticker>.US`.
+
+**Keeping it current.** Once a day the server reads the exchanges' own listing files (NASDAQ Trader's
+`nasdaqlisted.txt` and `otherlisted.txt`, NSE's `EQUITY_L.csv`) and adds any new listing to
+`server/data/symbol-additions.json`, so IPOs show up in search without a rebuild. To refresh sectors
+and market caps too, run `npm run symbols:build`, which rebuilds `master.json` from
+[US-Stock-Symbols](https://github.com/rreichel3/US-Stock-Symbols) (NASDAQ's screener export, for market caps)
+and [FinanceDatabase](https://github.com/JerBouma/FinanceDatabase) (MIT; sectors, ISINs and the NSE/BSE lists).
