@@ -314,6 +314,17 @@
   }
 }
 
+/* Header menus and the search dropdown drop in quickly. */
+.lq-menu-in {
+  animation: lq-menu-in 0.14s ease-out both;
+}
+@keyframes lq-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
 /* While the wormhole plays, panels wait at their start state. */
 .lq-hold .lq-rise {
   animation-play-state: paused;
@@ -321,7 +332,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .lq-cosmos__rings,
-  .lq-rise {
+  .lq-rise,
+  .lq-menu-in {
     animation: none;
   }
 }
