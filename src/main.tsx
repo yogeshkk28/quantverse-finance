@@ -10,6 +10,8 @@ import "./index.css";
 const LandingPage = lazy(() => import("./landing/LandingPage"));
 const App = lazy(() => import("./App"));
 const PrivacyPage = lazy(() => import("./landing/PrivacyPage"));
+const SignUpPage = lazy(() => import("./auth/SignUpPage"));
+const LoginPage = lazy(() => import("./auth/LoginPage"));
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -20,6 +22,8 @@ createRoot(document.getElementById("root")!).render(
             <Routes>
               <Route path="/" element={<LandingPage />} />
               <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/signup" element={<SignUpPage />} />
+              <Route path="/login" element={<LoginPage />} />
               <Route
                 path="/app/:tab?"
                 element={

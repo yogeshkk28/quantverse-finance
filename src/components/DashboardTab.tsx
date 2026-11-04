@@ -25,9 +25,8 @@ function greeting(d: Date) {
   return h < 5 ? "Good evening" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
 }
 
-function nameFrom(email?: string) {
-  const local = (email ?? "").split("@")[0].split(/[._+-]/)[0];
-  return local ? local[0].toUpperCase() + local.slice(1) : "";
+function firstName(fullName?: string) {
+  return (fullName ?? "").trim().split(/\s+/)[0] ?? "";
 }
 
 const IPO_STAGES = ["Upcoming", "Open now", "Recently listed"] as const;
@@ -55,7 +54,7 @@ function IpoPanel() {
 export default function DashboardTab({ tickers, portfolio, onSelectTicker, onOpenTab }: DashboardTabProps) {
   const { user } = useAuth();
   const { now, live, next, total } = useMarketSummary();
-  const name = nameFrom(user?.email);
+  const name = firstName(user?.fullName);
   const symbols = tickers.length ? tickers.map((t) => t.id) : ["NVDA", "AAPL", "RELIANCE", "TCS"];
 
   return (

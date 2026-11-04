@@ -27,7 +27,7 @@ const SLICES = 12;
 
 export default function LandingPage() {
   const reduced = useReducedMotion();
-  const { user, leave } = useAuth();
+  const { user, logOut } = useAuth();
   const location = useLocation();
   const rootRef = useRef<HTMLDivElement>(null);
   const heroProgress = useRef(0);
@@ -188,9 +188,14 @@ export default function LandingPage() {
               Open terminal
             </Link>
           ) : (
-            <a href="#gate" className="lq-header__cta">
-              Get access
-            </a>
+            <>
+              <Link to="/login" className="lq-header__cta lq-header__cta--quiet">
+                Log in
+              </Link>
+              <Link to="/signup" className="lq-header__cta">
+                Create account
+              </Link>
+            </>
           )}
           <button
             type="button"
@@ -218,12 +223,18 @@ export default function LandingPage() {
           <a href="#gate" onClick={closeMenu}>
             Enter the Wormhole
           </a>
-          {user && (
+          {user ? (
             <>
               <Link to="/app/dashboard">Open terminal</Link>
-              <button type="button" onClick={() => leave().then(closeMenu)}>
-                Sign out
+              <Link to="/app/account">Your account</Link>
+              <button type="button" onClick={() => logOut().then(closeMenu)}>
+                Log out
               </button>
+            </>
+          ) : (
+            <>
+              <Link to="/signup">Create account</Link>
+              <Link to="/login">Log in</Link>
             </>
           )}
         </nav>
@@ -387,9 +398,9 @@ export default function LandingPage() {
               Open terminal
             </Link>
           ) : (
-            <a href="#gate" className="lq-glass">
-              Join us
-            </a>
+            <Link to="/signup" className="lq-glass">
+              Create account
+            </Link>
           )}
         </div>
         <div className="lq-footer__base">

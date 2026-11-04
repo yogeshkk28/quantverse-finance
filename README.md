@@ -10,12 +10,24 @@ for US and Indian (NSE) stocks. React 19 + Vite front end served by an Express s
    on screen when a value is delayed, sample data or unavailable.
 3. `npm run dev`, then open http://localhost:3000
 
-## Landing page and sign-up
+## Landing page and accounts
 
-`/` is the scroll-driven landing page (`src/landing/`, GSAP + Lenis, canvas visuals). The
-"Enter the Wormhole" form near the bottom takes an email and opens the terminal at `/app/dashboard`.
-This is placeholder auth (`server/auth.ts`): no password, a 30-day session cookie, and users stored in
-`server/data/auth.json` (gitignored). It gates the UI only; the `/api` data routes stay open.
+`/` is the scroll-driven landing page (`src/landing/`, GSAP + Lenis, canvas visuals). Its
+"Enter the Wormhole" section sends visitors to `/signup` or `/login`; every `/app` page needs an account.
+
+- **Sign-up** (`src/auth/SignUpPage.tsx`) is two steps: name, email and password, then date of birth,
+  country, main market, trading experience and a starting virtual balance ($10k, $100k or $1M). Under 13s
+  are refused; 13 to 17 year olds confirm a parent or guardian agreed.
+- **Accounts live locally** in `server/data/accounts.json` (gitignored), written atomically by
+  `server/accounts.ts`. Passwords are hashed with scrypt; only a SHA-256 of each session token is stored.
+  Sessions last 30 days in an httpOnly `lq_sid` cookie. Logins are rate limited per IP and per email.
+- **The paper portfolio belongs to the account** and lives on the server (`/api/portfolio`), which
+  checks each order against cash and holdings and keeps the last 500 trades and a daily equity curve.
+- **Profile and account** (`/app/account`, from the initials icon in the header): edit profile, change
+  email or password, sign out other sessions, reset the portfolio, download your data, delete the account.
+
+There is no email delivery, so there's no password-reset email. To remove an account by hand, stop the
+server and delete it from `server/data/accounts.json`. The market-data `/api` routes stay open.
 
 ## Theme: Event Horizon
 
