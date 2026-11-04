@@ -4,10 +4,11 @@ import { ActiveTab } from "../types";
 
 const TOOLS: Array<{ id: ActiveTab; label: string }> = [
   { id: "dashboard", label: "Home" },
-  { id: "screener", label: "Screener" },
-  { id: "charts", label: "Charts" },
-  { id: "portfolio", label: "Paper portfolio" },
+  { id: "markets", label: "Markets" },
+  { id: "charts", label: "Advanced Charts" },
+  { id: "screener", label: "Stock Screener" },
   { id: "signals", label: "Correlation Web" },
+  { id: "portfolio", label: "Paper portfolio" },
 ];
 
 /** Shared footer: tools, policies and the paper-trading and data disclosure. */
