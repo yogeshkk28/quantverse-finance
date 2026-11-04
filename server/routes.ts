@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { config, validateProviderConfig } from "./config";
 import { GoogleGenAI } from "@google/genai";
 import {
+  getTicker,
   getLiveTickersList,
   getLiveHistory,
   getLiveNewsFeed,
@@ -15,6 +16,7 @@ import { cached } from "./marketData";
 import { Basis, dynamics, pair, structure } from "./correlationLab";
 import { Estimator } from "./quant/estimators";
 import { getScreener } from "./screener";
+import { findSymbol, symbolStats } from "./symbolMaster";
 
 const router = Router();
 
@@ -59,8 +61,48 @@ router.get("/api/stocks", async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/quote/:id
+ * Price, change and indicators for any listed US or Indian stock, fetched on demand.
+ * Accepts an id (MRF), a Yahoo symbol (MRF.NS) or an exchange-prefixed ticker (NSE:MRF).
+ */
+router.get("/api/quote/:id", async (req: Request, res: Response) => {
+  const id = req.params.id || "";
+  const entry = findSymbol(id);
+  try {
+    const ticker = await getTicker(id);
+    if (!ticker) {
+      return entry
+        ? res.status(502).json({ error: `No price data for ${entry.symbol} right now.`, entry })
+        : res.status(404).json({ error: `Unknown symbol ${id}` });
+    }
+    res.json({ ticker, entry: entry ?? null });
+  } catch (err: any) {
+    console.error(`[API] Quote failed for ${id}:`, err);
+    res.status(502).json({ error: "Could not load the quote." });
+  }
+});
+
+/**
+ * GET /api/symbols/stats
+ * How many stocks the symbol master covers, by exchange, and how fresh the list is.
+ */
+router.get("/api/symbols/stats", (_req: Request, res: Response) => {
+  res.json(symbolStats());
+});
+
+/**
+ * GET /api/symbols/:id
+ * Resolve an id or symbol to its listing (name, exchange, sector) without fetching prices.
+ */
+router.get("/api/symbols/:id", (req: Request, res: Response) => {
+  const entry = findSymbol(req.params.id || "");
+  if (!entry) return res.status(404).json({ error: `Unknown symbol ${req.params.id}` });
+  res.json({ entry });
+});
+
+/**
  * GET /api/screener
- * The Screener's ~350-stock universe with valuation, performance, technical, risk
+ * The Screener's ~1,300-stock universe (curated list plus every large US and Indian company) with valuation, performance, technical, risk
  * and factor-score metrics. Reports status "building" while the first load fills in.
  */
 router.get("/api/screener", async (_req: Request, res: Response) => {
@@ -112,8 +154,7 @@ router.get("/api/analyze/:symbol", async (req: Request, res: Response) => {
   const symbol = (req.params.symbol || "").toUpperCase();
   
   try {
-    const list = await getLiveTickersList();
-    const stock = list.find((t) => t.id === symbol);
+    const stock = await getTicker(symbol);
     if (!stock) return res.status(404).json({ error: `Unknown symbol ${symbol}` });
 
     const ai = getGeminiClient();
@@ -183,10 +224,13 @@ router.get("/api/macro", async (req: Request, res: Response) => {
 router.get("/api/chart/:ticker", async (req: Request, res: Response) => {
   const tickerId = req.params.ticker.toUpperCase();
   try {
-    const list = await getLiveTickersList();
-    const found = list.find((t) => t.id === tickerId);
-    if (!found) return res.status(404).json({ error: `Unknown symbol ${tickerId}` });
-    const { history, source } = await getLiveHistory(tickerId);
+    const found = await getTicker(tickerId);
+    if (!found) {
+      return findSymbol(tickerId)
+        ? res.status(502).json({ error: `No price data for ${tickerId} right now.` })
+        : res.status(404).json({ error: `Unknown symbol ${tickerId}` });
+    }
+    const { history, source } = await getLiveHistory(found.id);
     res.json({ ticker: found, history, historySource: source });
   } catch (err: any) {
     console.error(`[API] Legacy chart query failed for ${tickerId}:`, err);

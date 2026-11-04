@@ -122,7 +122,8 @@ async function buildTicker(entry: UniverseEntry, benchmarkReturns: number[] | nu
   let source: Ticker["source"];
   let asOf: string;
 
-  if (chart && chart.candles.length >= 30) {
+  // Recent listings have only a few sessions; indicators then fall back to neutral values.
+  if (chart && chart.candles.length >= 2) {
     const closes = chart.candles.map((c) => c.close);
     const volumes = chart.candles.map((c) => c.volume);
     const ema26 = emaSeries(closes, 26);
@@ -215,6 +216,32 @@ export function getLiveTickersList(): Promise<Ticker[]> {
     console.log(`[Stocks Service] ${tickers.length} tickers built. Sources: ${JSON.stringify(counts)}`);
     return tickers;
   });
+}
+
+/**
+ * One stock's ticker, for any listed US or Indian stock (not just the dashboard list).
+ * Fetched on demand from Yahoo and cached for 60 seconds. Null for an unknown symbol
+ * or when no data could be loaded.
+ */
+export async function getTicker(idOrSymbol: string): Promise<Ticker | null> {
+  const entry = findEntry(idOrSymbol);
+  if (!entry) return null;
+  const tracked = UNIVERSE.some((u) => u.id === entry.id);
+  if (tracked) {
+    const list = await getLiveTickersList();
+    const hit = list.find((t) => t.id === entry.id);
+    if (hit) return hit;
+  }
+  try {
+    return await cached(`ticker:${entry.symbol}`, 60_000, async () => {
+      const bench = await getYahooChart(BENCHMARK[entry.market], "2y");
+      const ticker = await buildTicker(entry, bench ? dailyReturns(bench.candles.map((c) => c.close)) : null);
+      if (!ticker) throw new Error("no data");
+      return ticker;
+    });
+  } catch {
+    return null;
+  }
 }
 
 // -------------------------------------------------------------------------

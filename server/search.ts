@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
-import { UNIVERSE, type Market } from "./universe";
-import { SCREENER_UNIVERSE } from "./screenerUniverse";
+import type { Market } from "./universe";
+import { searchSymbols } from "./symbolMaster";
 import { CATALOG, type MarketCategory } from "./markets";
 
 /**
@@ -9,9 +9,8 @@ import { CATALOG, type MarketCategory } from "./markets";
  * GET /api/search?q=<text>&limit=N&market=US|IN
  * → { results: [{ id, symbol, name, market, sector, exchange, kind }] }
  *
- * Stocks currently come from the tracked universe plus the Screener list. When
- * the full US/India symbol master lands, swap `stockCandidates()` for its search.
- * Non-stock instruments (indices, futures, forex, crypto, bonds) come from the
+ * Stocks come from the symbol master: every listed NASDAQ, NYSE, NYSE American,
+ * NSE and BSE stock (about 11,000), ranked there. Non-stock instruments (indices, futures, forex, crypto, bonds) come from the
  * Markets catalog so "gold" or "nifty" also find something to chart.
  */
 
@@ -37,30 +36,17 @@ interface Candidate extends SearchResult {
   order: number;
 }
 
-let stockCache: Candidate[] | null = null;
-function stockCandidates(): Candidate[] {
-  if (stockCache) return stockCache;
-  const seen = new Set<string>();
-  const out: Candidate[] = [];
-  // Tracked universe first (it's the most-traded set), then the Screener's larger list.
-  for (const u of [...UNIVERSE, ...SCREENER_UNIVERSE]) {
-    if (seen.has(u.id)) continue;
-    seen.add(u.id);
-    out.push({
-      id: u.id,
-      symbol: u.symbol,
-      name: u.name,
-      market: u.market,
-      sector: u.sector,
-      exchange: u.market === "US" ? "US" : u.symbol.endsWith(".BO") ? "BSE" : "NSE",
-      kind: "stock",
-      short: u.id,
-      keywords: "industry" in u ? String((u as { industry?: string }).industry ?? "") : "",
-      order: out.length,
-    });
-  }
-  stockCache = out;
-  return out;
+/** Stocks: every listed US and Indian stock, ranked by the symbol master (see symbolMaster.ts). */
+function stockResults(query: string, limit: number, market?: Market): SearchResult[] {
+  return searchSymbols(query, limit, market).map((r) => ({
+    id: r.id,
+    symbol: r.symbol,
+    name: r.name,
+    market: r.market,
+    sector: r.sector,
+    exchange: r.exchange,
+    kind: "stock" as const,
+  }));
 }
 
 const KIND_EXCHANGE: Record<SearchKind, string> = {
@@ -106,18 +92,23 @@ function score(c: Candidate, q: string): number | null {
 export function searchAll(query: string, limit = 12, market?: Market): SearchResult[] {
   const q = query.trim().toLowerCase().replace(/^\$/, "");
   if (!q) return [];
-  const pool = [...stockCandidates(), ...instrumentCandidates];
+  // Instruments first when they match as well as a stock does ("gold", "nifty", "usd/inr").
   const hits: Array<{ c: Candidate; s: number }> = [];
-  for (const c of pool) {
+  for (const c of instrumentCandidates) {
     if (market && c.market !== market) continue;
     const s = score(c, q);
     if (s !== null) hits.push({ c, s });
   }
   hits.sort((a, b) => a.s - b.s || a.c.order - b.c.order);
-  return hits.slice(0, limit).map(({ c }) => {
+  const instruments = hits.map(({ c, s }) => {
     const { keywords: _k, order: _o, short: _s, ...result } = c;
-    return result;
+    return { result, s };
   });
+  const stocks = stockResults(q, limit, market);
+  // An exact or prefix instrument match leads; looser ones follow the stocks.
+  const strong = instruments.filter((i) => i.s <= 1).map((i) => i.result);
+  const weak = instruments.filter((i) => i.s > 1).map((i) => i.result);
+  return [...strong, ...stocks, ...weak].slice(0, limit);
 }
 
 const router = Router();

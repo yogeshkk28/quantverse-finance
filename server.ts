@@ -9,6 +9,7 @@ import dashboardRouter from "./server/dashboard";
 import marketsRouter from "./server/markets";
 import searchRouter from "./server/search";
 import { getLiveGlobalIndices } from "./server/apiClients";
+import { scheduleListingRefresh, symbolStats } from "./server/symbolMaster";
 dotenv.config();
 
 const app = express();
@@ -50,6 +51,9 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Lumina Quant Server listening on http://0.0.0.0:${PORT}`);
+    const symbols = symbolStats();
+    console.log(`[Symbols] ${symbols.total} stocks searchable (${symbols.us} US, ${symbols.india} India).`);
+    scheduleListingRefresh();
   });
 }
 

@@ -1,12 +1,14 @@
 /**
  * Regular trading hours for the world's 20 largest stock exchanges, worked out
- * from the visitor's clock. Lunch breaks and non-Monday-to-Friday weeks are
+ * from the visitor's clock. Lumina trades the US (Nasdaq, NYSE) and India (NSE, BSE);
+ * the rest are shown on the landing page's world clock for context only. Lunch breaks and non-Monday-to-Friday weeks are
  * modelled; exchange holidays are not, so this is a guide rather than a
  * trading calendar.
  */
 
 export type Region = "Americas" | "Europe & Africa" | "Middle East" | "Asia-Pacific";
-export type Coverage = "covered" | "soon";
+/** "covered": Lumina has every listed stock here. "clock": shown for context only. */
+export type Coverage = "covered" | "clock";
 export type MarketState = "open" | "lunch" | "closed";
 
 export interface Exchange {
@@ -33,25 +35,25 @@ const h = (hours: number, minutes = 0) => hours * 60 + minutes;
 export const EXCHANGES: Exchange[] = [
   { code: "Nasdaq", name: "Nasdaq", city: "New York", country: "United States", tz: "America/New_York", region: "Americas", sessions: [[h(9, 30), h(16)]], days: MON_FRI, group: "US", coverage: "covered" },
   { code: "NYSE", name: "New York Stock Exchange", city: "New York", country: "United States", tz: "America/New_York", region: "Americas", sessions: [[h(9, 30), h(16)]], days: MON_FRI, group: "US", coverage: "covered" },
-  { code: "SSE", name: "Shanghai Stock Exchange", city: "Shanghai", country: "China", tz: "Asia/Shanghai", region: "Asia-Pacific", sessions: [[h(9, 30), h(11, 30)], [h(13), h(15)]], days: MON_FRI, group: "China", coverage: "soon" },
-  { code: "JPX", name: "Japan Exchange Group", city: "Tokyo", country: "Japan", tz: "Asia/Tokyo", region: "Asia-Pacific", sessions: [[h(9), h(11, 30)], [h(12, 30), h(15, 30)]], days: MON_FRI, group: "Japan", coverage: "soon" },
-  { code: "Euronext", name: "Euronext", city: "Paris", country: "Pan-European", tz: "Europe/Paris", region: "Europe & Africa", sessions: [[h(9), h(17, 30)]], days: MON_FRI, group: "Euronext", coverage: "soon" },
-  { code: "SZSE", name: "Shenzhen Stock Exchange", city: "Shenzhen", country: "China", tz: "Asia/Shanghai", region: "Asia-Pacific", sessions: [[h(9, 30), h(11, 30)], [h(13), h(15)]], days: MON_FRI, group: "China", coverage: "soon" },
-  { code: "HKEX", name: "Hong Kong Exchanges", city: "Hong Kong", country: "Hong Kong", tz: "Asia/Hong_Kong", region: "Asia-Pacific", sessions: [[h(9, 30), h(12)], [h(13), h(16)]], days: MON_FRI, group: "Hong Kong", coverage: "soon" },
-  { code: "TSX", name: "Toronto Stock Exchange", city: "Toronto", country: "Canada", tz: "America/Toronto", region: "Americas", sessions: [[h(9, 30), h(16)]], days: MON_FRI, group: "Canada", coverage: "soon" },
-  { code: "BSE", name: "BSE India", city: "Mumbai", country: "India", tz: "Asia/Kolkata", region: "Asia-Pacific", sessions: [[h(9, 15), h(15, 30)]], days: MON_FRI, group: "India", coverage: "soon" },
-  { code: "KRX", name: "Korea Exchange", city: "Seoul", country: "South Korea", tz: "Asia/Seoul", region: "Asia-Pacific", sessions: [[h(9), h(15, 30)]], days: MON_FRI, group: "Korea", coverage: "soon" },
+  { code: "SSE", name: "Shanghai Stock Exchange", city: "Shanghai", country: "China", tz: "Asia/Shanghai", region: "Asia-Pacific", sessions: [[h(9, 30), h(11, 30)], [h(13), h(15)]], days: MON_FRI, group: "China", coverage: "clock" },
+  { code: "JPX", name: "Japan Exchange Group", city: "Tokyo", country: "Japan", tz: "Asia/Tokyo", region: "Asia-Pacific", sessions: [[h(9), h(11, 30)], [h(12, 30), h(15, 30)]], days: MON_FRI, group: "Japan", coverage: "clock" },
+  { code: "Euronext", name: "Euronext", city: "Paris", country: "Pan-European", tz: "Europe/Paris", region: "Europe & Africa", sessions: [[h(9), h(17, 30)]], days: MON_FRI, group: "Euronext", coverage: "clock" },
+  { code: "SZSE", name: "Shenzhen Stock Exchange", city: "Shenzhen", country: "China", tz: "Asia/Shanghai", region: "Asia-Pacific", sessions: [[h(9, 30), h(11, 30)], [h(13), h(15)]], days: MON_FRI, group: "China", coverage: "clock" },
+  { code: "HKEX", name: "Hong Kong Exchanges", city: "Hong Kong", country: "Hong Kong", tz: "Asia/Hong_Kong", region: "Asia-Pacific", sessions: [[h(9, 30), h(12)], [h(13), h(16)]], days: MON_FRI, group: "Hong Kong", coverage: "clock" },
+  { code: "TSX", name: "Toronto Stock Exchange", city: "Toronto", country: "Canada", tz: "America/Toronto", region: "Americas", sessions: [[h(9, 30), h(16)]], days: MON_FRI, group: "Canada", coverage: "clock" },
+  { code: "BSE", name: "BSE India", city: "Mumbai", country: "India", tz: "Asia/Kolkata", region: "Asia-Pacific", sessions: [[h(9, 15), h(15, 30)]], days: MON_FRI, group: "India", coverage: "covered" },
+  { code: "KRX", name: "Korea Exchange", city: "Seoul", country: "South Korea", tz: "Asia/Seoul", region: "Asia-Pacific", sessions: [[h(9), h(15, 30)]], days: MON_FRI, group: "Korea", coverage: "clock" },
 
   { code: "NSE", name: "National Stock Exchange of India", city: "Mumbai", country: "India", tz: "Asia/Kolkata", region: "Asia-Pacific", sessions: [[h(9, 15), h(15, 30)]], days: MON_FRI, group: "India", coverage: "covered" },
-  { code: "Tadawul", name: "Saudi Exchange", city: "Riyadh", country: "Saudi Arabia", tz: "Asia/Riyadh", region: "Middle East", sessions: [[h(10), h(15)]], days: SUN_THU, coverage: "soon" },
-  { code: "LSE", name: "London Stock Exchange", city: "London", country: "United Kingdom", tz: "Europe/London", region: "Europe & Africa", sessions: [[h(8), h(16, 30)]], days: MON_FRI, coverage: "soon" },
-  { code: "SIX", name: "SIX Swiss Exchange", city: "Zurich", country: "Switzerland", tz: "Europe/Zurich", region: "Europe & Africa", sessions: [[h(9), h(17, 30)]], days: MON_FRI, coverage: "soon" },
-  { code: "TWSE", name: "Taiwan Stock Exchange", city: "Taipei", country: "Taiwan", tz: "Asia/Taipei", region: "Asia-Pacific", sessions: [[h(9), h(13, 30)]], days: MON_FRI, coverage: "soon" },
-  { code: "Xetra", name: "Deutsche Börse", city: "Frankfurt", country: "Germany", tz: "Europe/Berlin", region: "Europe & Africa", sessions: [[h(9), h(17, 30)]], days: MON_FRI, coverage: "soon" },
-  { code: "ASX", name: "Australian Securities Exchange", city: "Sydney", country: "Australia", tz: "Australia/Sydney", region: "Asia-Pacific", sessions: [[h(10), h(16)]], days: MON_FRI, coverage: "soon" },
-  { code: "JSE", name: "Johannesburg Stock Exchange", city: "Johannesburg", country: "South Africa", tz: "Africa/Johannesburg", region: "Europe & Africa", sessions: [[h(9), h(17)]], days: MON_FRI, coverage: "soon" },
-  { code: "BME", name: "BME Spanish Exchanges", city: "Madrid", country: "Spain", tz: "Europe/Madrid", region: "Europe & Africa", sessions: [[h(9), h(17, 30)]], days: MON_FRI, coverage: "soon" },
-  { code: "B3", name: "B3 Brasil Bolsa Balcão", city: "São Paulo", country: "Brazil", tz: "America/Sao_Paulo", region: "Americas", sessions: [[h(10), h(17)]], days: MON_FRI, coverage: "soon" },
+  { code: "Tadawul", name: "Saudi Exchange", city: "Riyadh", country: "Saudi Arabia", tz: "Asia/Riyadh", region: "Middle East", sessions: [[h(10), h(15)]], days: SUN_THU, coverage: "clock" },
+  { code: "LSE", name: "London Stock Exchange", city: "London", country: "United Kingdom", tz: "Europe/London", region: "Europe & Africa", sessions: [[h(8), h(16, 30)]], days: MON_FRI, coverage: "clock" },
+  { code: "SIX", name: "SIX Swiss Exchange", city: "Zurich", country: "Switzerland", tz: "Europe/Zurich", region: "Europe & Africa", sessions: [[h(9), h(17, 30)]], days: MON_FRI, coverage: "clock" },
+  { code: "TWSE", name: "Taiwan Stock Exchange", city: "Taipei", country: "Taiwan", tz: "Asia/Taipei", region: "Asia-Pacific", sessions: [[h(9), h(13, 30)]], days: MON_FRI, coverage: "clock" },
+  { code: "Xetra", name: "Deutsche Börse", city: "Frankfurt", country: "Germany", tz: "Europe/Berlin", region: "Europe & Africa", sessions: [[h(9), h(17, 30)]], days: MON_FRI, coverage: "clock" },
+  { code: "ASX", name: "Australian Securities Exchange", city: "Sydney", country: "Australia", tz: "Australia/Sydney", region: "Asia-Pacific", sessions: [[h(10), h(16)]], days: MON_FRI, coverage: "clock" },
+  { code: "JSE", name: "Johannesburg Stock Exchange", city: "Johannesburg", country: "South Africa", tz: "Africa/Johannesburg", region: "Europe & Africa", sessions: [[h(9), h(17)]], days: MON_FRI, coverage: "clock" },
+  { code: "BME", name: "BME Spanish Exchanges", city: "Madrid", country: "Spain", tz: "Europe/Madrid", region: "Europe & Africa", sessions: [[h(9), h(17, 30)]], days: MON_FRI, coverage: "clock" },
+  { code: "B3", name: "B3 Brasil Bolsa Balcão", city: "São Paulo", country: "Brazil", tz: "America/Sao_Paulo", region: "Americas", sessions: [[h(10), h(17)]], days: MON_FRI, coverage: "clock" },
 ];
 
 export const REGIONS: Region[] = ["Americas", "Europe & Africa", "Middle East", "Asia-Pacific"];
@@ -142,6 +144,11 @@ export function exchangeStatus(ex: Exchange, now: Date): ExchangeStatus {
 
 export function marketStatus(now: Date): ExchangeStatus[] {
   return EXCHANGES.map((ex) => exchangeStatus(ex, now));
+}
+
+/** The exchanges Lumina covers: Nasdaq, NYSE, NSE and BSE. */
+export function coveredStatus(now: Date): ExchangeStatus[] {
+  return marketStatus(now).filter((s) => s.coverage === "covered");
 }
 
 export interface MarketGroup {

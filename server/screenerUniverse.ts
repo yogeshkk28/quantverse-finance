@@ -8,8 +8,14 @@
  *
  * Row format: [id, name, sector, industry]. For NSE the Yahoo symbol is `<id>.NS`
  * unless a fourth field overrides it. Ids are unique across both markets.
+ *
+ * On top of this hand-picked list, the screener takes every large company in the symbol
+ * master (see `symbolData.ts`): US listings of $10B and up, and Indian mid and large caps.
+ * That is roughly 1,300 stocks in total. Anything smaller is still searchable and chartable,
+ * it just isn't preloaded here.
  */
 import type { Market } from "./universe";
+import { snapshotRows, type MasterRow } from "./symbolData";
 
 export type Sector =
   | "Technology"
@@ -471,9 +477,41 @@ function expand(market: Market, table: Record<Sector, Row[]>): ScreenerEntry[] {
   );
 }
 
-export const SCREENER_UNIVERSE: ScreenerEntry[] = [...expand("US", US), ...expand("IN", IN)];
+const CURATED: ScreenerEntry[] = [...expand("US", US), ...expand("IN", IN)];
+
+/** Minimum size tier (see MasterRow.tier) for a master listing to join the screener. */
+export const SCREENER_MIN_TIER: Record<Market, number> = { US: 4, IN: 3 };
+
+/** Id for a master listing: the ticker without its exchange suffix, unless that is already taken. */
+export function masterId(row: Pick<MasterRow, "symbol" | "market" | "exchange">, taken: (id: string) => boolean): string {
+  const stem = row.symbol.replace(/\.(NS|BO)$/, "");
+  if (!taken(stem)) return stem;
+  return row.market === "US" ? `${stem}.US` : row.symbol;
+}
+
+function fromMaster(curated: ScreenerEntry[]): ScreenerEntry[] {
+  const ids = new Set(curated.map((e) => e.id));
+  const symbols = new Set(curated.map((e) => e.symbol));
+  const out: ScreenerEntry[] = [];
+  const rows = snapshotRows()
+    .filter((r) => r.tier >= SCREENER_MIN_TIER[r.market] && (SECTORS as string[]).includes(r.sector) && !symbols.has(r.symbol))
+    .sort((a, b) => b.tier - a.tier || (b.capUsdM ?? 0) - (a.capUsdM ?? 0) || (a.market === "US" ? -1 : 1));
+  for (const r of rows) {
+    const id = masterId(r, (x) => ids.has(x));
+    ids.add(id);
+    out.push({ id, symbol: r.symbol, name: r.name, sector: r.sector as Sector, industry: r.industry || r.sector, market: r.market });
+  }
+  return out;
+}
+
+export const SCREENER_UNIVERSE: ScreenerEntry[] = [...CURATED, ...fromMaster(CURATED)];
+const SCREENER_INDEX = new Map<string, ScreenerEntry>();
+for (const e of SCREENER_UNIVERSE) {
+  if (!SCREENER_INDEX.has(e.symbol)) SCREENER_INDEX.set(e.symbol, e);
+}
+for (const e of SCREENER_UNIVERSE) SCREENER_INDEX.set(e.id, e); // ids win over symbols
 
 export function findScreenerEntry(idOrSymbol: string): ScreenerEntry | undefined {
   const key = idOrSymbol.toUpperCase();
-  return SCREENER_UNIVERSE.find((u) => u.id === key || u.symbol === key);
+  return SCREENER_INDEX.get(key);
 }

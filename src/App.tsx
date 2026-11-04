@@ -97,19 +97,34 @@ export default function App() {
       try {
         const res = await fetch("/api/stocks");
         const data = await res.json();
-        if (data && Array.isArray(data.tickers)) {
-          setTickers(data.tickers);
-        } else if (Array.isArray(data)) {
-          setTickers(data);
-        } else {
-          setTickers([]);
-        }
+        const list: Ticker[] = data && Array.isArray(data.tickers) ? data.tickers : Array.isArray(data) ? data : [];
+        // Keep any stock opened on demand before this list arrived.
+        setTickers((prev) => [...list, ...prev.filter((t) => !list.some((l) => l.id === t.id))]);
       } catch (err) {
         console.error("Failed to load initial constituent tickers:", err);
       }
     }
     fetchStocks();
   }, []);
+
+  // Any listed US or Indian stock can be opened by URL or search: fetch its quote on demand.
+  useEffect(() => {
+    if (!chartSymbol || tickers.some((t) => t.id === chartSymbol)) return;
+    let cancelled = false;
+    fetch(`/api/quote/${encodeURIComponent(chartSymbol)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const t: Ticker | undefined = data?.ticker;
+        if (cancelled || !t) return;
+        setTickers((prev) => (prev.some((p) => p.id === t.id) ? prev : [...prev, t]));
+        // "NSE:MRF" or "MRF.NS" resolve to the canonical id; move the URL there.
+        if (t.id !== chartSymbol) navigate(chartPath(t.id), { replace: true });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [chartSymbol, tickers]);
 
   // System utility to trigger notification alerts
   const triggerNotificationAlert = (text: string, type: "success" | "info" | "warn" = "info") => {
