@@ -1,9 +1,12 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import React, { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { ActiveTab } from "../types";
-import { Bell, LogOut, Trash2, Menu, X } from "lucide-react";
+import { Bell, Menu, Search, X } from "lucide-react";
 import MarketStatusPill from "./MarketStatusPill";
+import NavDropdown from "./nav/NavDropdown";
+import SearchBar from "./nav/SearchBar";
+import ProfileMenu from "./nav/ProfileMenu";
+import { LAB_ITEMS, LAB_LABEL, MARKET_ITEMS, PORTFOLIO_ITEM, NavItem, chartPath, lastChart } from "./nav/navConfig";
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -11,73 +14,98 @@ interface HeaderProps {
   onNotificationsClick?: () => void;
 }
 
-const TABS: Array<{ id: ActiveTab; label: string }> = [
-  { id: "dashboard", label: "Home" },
-  { id: "screener", label: "Screener" },
-  { id: "charts", label: "Charts" },
-  { id: "portfolio", label: "Portfolio" },
-  { id: "signals", label: "Correlation Web" },
-];
-
+/**
+ * Top bar: brand, Markets and Quant Lab menus, Portfolio, the universal search,
+ * then status, activity log and the profile slot on the right.
+ */
 export default function Header({ activeTab, setActiveTab, onNotificationsClick }: HeaderProps) {
-  const { user, leave, forget } = useAuth();
   const navigate = useNavigate();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const { pathname } = useLocation();
   const [navOpen, setNavOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
 
+  // Close the mobile panels whenever the page changes.
   useEffect(() => {
-    if (!menuOpen) return;
-    const onDown = (e: MouseEvent) => {
-      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [menuOpen]);
+    setNavOpen(false);
+    setSearchOpen(false);
+  }, [pathname]);
 
-  const go = (tab: ActiveTab) => {
-    setActiveTab(tab);
+  const marketCategory = pathname.startsWith("/app/markets/") ? pathname.split("/")[3] : null;
+
+  const pick = (item: NavItem) => {
+    if (item.to === "chart") navigate(chartPath(lastChart()));
+    else navigate(item.to);
     setNavOpen(false);
   };
 
+  const isLabItem = (item: NavItem) => item.match === activeTab;
+  const isMarketItem = (item: NavItem) => item.to === `/app/markets/${marketCategory}`;
+
+  const labActive = LAB_ITEMS.some(isLabItem);
+  const marketsActive = activeTab === "markets";
+  const portfolioActive = activeTab === "portfolio";
+
   return (
     <header className="sticky top-0 z-50 border-b border-lq-line bg-[rgba(7,8,12,0.86)] backdrop-blur-md">
-      <div className="flex h-16 items-center gap-4 md:gap-8 px-4 md:px-8 w-full max-w-[1600px] mx-auto">
+      <div className="flex h-16 items-center gap-3 lg:gap-6 px-4 md:px-8 w-full max-w-[1600px] mx-auto">
         <button
           type="button"
-          onClick={() => go("dashboard")}
+          onClick={() => setActiveTab("dashboard")}
+          aria-label="Lumina Quant home"
           className="font-serif text-[22px] md:text-[26px] font-medium leading-none text-lq-gold hover:text-lq-gold-soft transition-colors whitespace-nowrap"
         >
           Lumina Quant
         </button>
 
-        <nav aria-label="Primary" className="hidden lg:flex items-center gap-1">
-          {TABS.map((tab) => {
-            const on = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => go(tab.id)}
-                aria-current={on ? "page" : undefined}
-                className={`relative px-3 py-2 text-[14px] transition-colors ${
-                  on ? "text-lq-text" : "text-lq-muted hover:text-lq-text"
-                }`}
-              >
-                {tab.label}
-                {on && (
-                  <span className="absolute left-3 right-3 -bottom-[13px] h-[2px] rounded-full bg-lq-gold shadow-[0_0_10px_rgba(212,175,55,0.6)]" />
-                )}
-              </button>
-            );
-          })}
+        <nav aria-label="Primary" className="hidden lg:flex items-center gap-0.5">
+          <NavDropdown
+            label="Markets"
+            items={MARKET_ITEMS}
+            active={marketsActive}
+            isItemActive={isMarketItem}
+            onPick={pick}
+            width={520}
+          />
+          <NavDropdown label={LAB_LABEL} items={LAB_ITEMS} active={labActive} isItemActive={isLabItem} onPick={pick} width={340} />
+          <button
+            type="button"
+            onClick={() => pick(PORTFOLIO_ITEM)}
+            aria-current={portfolioActive ? "page" : undefined}
+            className={`relative px-3 py-2 text-[14px] transition-colors ${
+              portfolioActive ? "text-lq-text" : "text-lq-muted hover:text-lq-text"
+            }`}
+          >
+            Portfolio
+            {portfolioActive && (
+              <span className="absolute left-3 right-3 -bottom-[13px] h-[2px] rounded-full bg-lq-gold shadow-[0_0_10px_rgba(212,175,55,0.6)]" />
+            )}
+          </button>
         </nav>
 
-        <div className="ml-auto flex items-center gap-1.5 md:gap-3">
-          <span className="hidden md:inline lq-tag" title="Every trade here is simulated with virtual money">
+        <div className="hidden md:block flex-1 min-w-[200px] max-w-[560px] mx-auto">
+          <SearchBar />
+        </div>
+
+        <div className="ml-auto md:ml-0 flex items-center gap-1.5 md:gap-3">
+          <button
+            type="button"
+            className="md:hidden w-10 h-10 inline-flex items-center justify-center rounded-full text-lq-text-2 hover:bg-lq-surface-2"
+            aria-label={searchOpen ? "Close search" : "Search"}
+            aria-expanded={searchOpen}
+            onClick={() => {
+              setSearchOpen((o) => !o);
+              setNavOpen(false);
+            }}
+          >
+            {searchOpen ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
+          </button>
+
+          <span className="hidden 2xl:inline lq-tag" title="Every trade here is simulated with virtual money">
             Paper trading
           </span>
-          <MarketStatusPill />
+          <span className="hidden sm:inline-flex">
+            <MarketStatusPill />
+          </span>
 
           <button
             type="button"
@@ -88,64 +116,8 @@ export default function Header({ activeTab, setActiveTab, onNotificationsClick }
             <Bell className="w-4 h-4" />
           </button>
 
-          <div className="relative" ref={menuRef}>
-            <button
-              type="button"
-              onClick={() => setMenuOpen((o) => !o)}
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-              aria-label="Account"
-              className="w-10 h-10 rounded-full border border-lq-line-2 flex items-center justify-center hover:border-lq-gold-line transition-colors"
-              title={user?.email}
-            >
-              <span className="w-5 h-5 rounded-full" style={{ background: "var(--lq-gold-grad)" }} />
-            </button>
-            {menuOpen && (
-              <div role="menu" className="lq-panel absolute right-0 mt-2 w-60 p-2">
-                <p className="px-3 py-2 text-[12px] text-lq-muted truncate m-0">{user?.email}</p>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onNotificationsClick?.();
-                  }}
-                  className="sm:hidden w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] text-lq-text-2 hover:bg-lq-surface-2 hover:text-lq-gold"
-                >
-                  <Bell className="w-3.5 h-3.5" /> Activity log
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={async () => {
-                    await leave();
-                    navigate("/");
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] text-lq-text-2 hover:bg-lq-surface-2 hover:text-lq-gold"
-                >
-                  <LogOut className="w-3.5 h-3.5" /> Sign out
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={async () => {
-                    if (!window.confirm("Delete your email and sign out everywhere? This can't be undone.")) return;
-                    if (await forget()) navigate("/");
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] text-lq-muted hover:bg-lq-surface-2 hover:text-lq-down"
-                >
-                  <Trash2 className="w-3.5 h-3.5" /> Delete my data
-                </button>
-                <Link
-                  to="/privacy"
-                  role="menuitem"
-                  className="block px-3 py-2 rounded-lg text-[12px] text-lq-muted hover:bg-lq-surface-2 hover:text-lq-text"
-                >
-                  Privacy policy
-                </Link>
-              </div>
-            )}
-          </div>
+          {/* Profile slot */}
+          <ProfileMenu onNotificationsClick={onNotificationsClick} />
 
           <button
             type="button"
@@ -153,30 +125,71 @@ export default function Header({ activeTab, setActiveTab, onNotificationsClick }
             aria-label={navOpen ? "Close menu" : "Open menu"}
             aria-expanded={navOpen}
             aria-controls="lq-mobile-nav"
-            onClick={() => setNavOpen((o) => !o)}
+            onClick={() => {
+              setNavOpen((o) => !o);
+              setSearchOpen(false);
+            }}
           >
             {navOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
       </div>
 
+      {searchOpen && (
+        <div className="md:hidden border-t border-lq-line px-4 py-3">
+          <SearchBar autoFocus onDone={() => setSearchOpen(false)} />
+        </div>
+      )}
+
       {navOpen && (
-        <nav id="lq-mobile-nav" aria-label="Primary" className="lg:hidden border-t border-lq-line px-4 py-3 flex flex-col gap-1">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => go(tab.id)}
-              aria-current={activeTab === tab.id ? "page" : undefined}
-              className={`text-left px-3 py-3 rounded-lg text-[15px] ${
-                activeTab === tab.id ? "bg-lq-surface-2 text-lq-gold" : "text-lq-text-2 hover:bg-lq-surface-2"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <nav
+          id="lq-mobile-nav"
+          aria-label="Primary"
+          className="lg:hidden border-t border-lq-line px-4 py-4 grid gap-5 sm:grid-cols-2 max-h-[calc(100vh-4rem)] overflow-y-auto"
+        >
+          <MobileGroup title="Markets" items={MARKET_ITEMS} isActive={isMarketItem} onPick={pick} />
+          <div className="flex flex-col gap-5">
+            <MobileGroup title={LAB_LABEL} items={LAB_ITEMS} isActive={isLabItem} onPick={pick} />
+            <MobileGroup title="Account" items={[PORTFOLIO_ITEM]} isActive={() => portfolioActive} onPick={pick} />
+          </div>
         </nav>
       )}
     </header>
+  );
+}
+
+function MobileGroup({
+  title,
+  items,
+  isActive,
+  onPick,
+}: {
+  title: string;
+  items: NavItem[];
+  isActive: (item: NavItem) => boolean;
+  onPick: (item: NavItem) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="lq-lbl px-3 pb-1">{title}</span>
+      {items.map((item) => {
+        const Icon = item.icon;
+        const on = isActive(item);
+        return (
+          <button
+            key={item.label}
+            type="button"
+            onClick={() => onPick(item)}
+            aria-current={on ? "page" : undefined}
+            className={`flex items-center gap-3 text-left px-3 py-2.5 rounded-lg text-[15px] ${
+              on ? "bg-lq-surface-2 text-lq-gold" : "text-lq-text-2 hover:bg-lq-surface-2"
+            }`}
+          >
+            <Icon className="w-4 h-4 text-lq-muted" aria-hidden="true" />
+            {item.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }

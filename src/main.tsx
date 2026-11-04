@@ -21,7 +21,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/" element={<LandingPage />} />
               <Route path="/privacy" element={<PrivacyPage />} />
               <Route
-                path="/app/:tab?"
+                path="/app/:tab?/:param?"
                 element={
                   <RequireAuth>
                     <App />
