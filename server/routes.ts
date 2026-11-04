@@ -14,6 +14,7 @@ import { buildWeb, eventStudy, loadPanel } from "./impact";
 import { cached } from "./marketData";
 import { Basis, dynamics, pair, structure } from "./correlationLab";
 import { Estimator } from "./quant/estimators";
+import { getScreener } from "./screener";
 
 const router = Router();
 
@@ -54,6 +55,20 @@ router.get("/api/stocks", async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error("[API] Failed to get live stocks:", err);
     res.status(502).json({ error: "Could not load stock data.", tickers: [] });
+  }
+});
+
+/**
+ * GET /api/screener
+ * The Screener's ~350-stock universe with valuation, performance, technical, risk
+ * and factor-score metrics. Reports status "building" while the first load fills in.
+ */
+router.get("/api/screener", async (_req: Request, res: Response) => {
+  try {
+    res.json(await getScreener());
+  } catch (err: any) {
+    console.error("[API] Screener failed:", err);
+    res.status(502).json({ error: "Could not load screener data.", rows: [] });
   }
 });
 

@@ -97,6 +97,8 @@ export interface ExchangeStatus extends Exchange {
   utcOffset: string; // "UTC+5:30"
   /** Minutes until the next session starts (0 while open). */
   opensIn: number;
+  /** Minutes until the current session ends (0 unless open). */
+  closesIn: number;
   /** Sessions on the visitor's 24-hour clock, in minutes. */
   viewerSessions: [number, number][];
 }
@@ -123,6 +125,9 @@ export function exchangeStatus(ex: Exchange, now: Date): ExchangeStatus {
     }
   }
 
+  const current = inSession ? ex.sessions.find(([a, b]) => minutes >= a && minutes < b) : undefined;
+  const closesIn = current ? current[1] - minutes : 0;
+
   const shift = -now.getTimezoneOffset() - offset;
   return {
     ...ex,
@@ -130,6 +135,7 @@ export function exchangeStatus(ex: Exchange, now: Date): ExchangeStatus {
     localTime: `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`,
     utcOffset: utcLabel(offset),
     opensIn,
+    closesIn,
     viewerSessions: ex.sessions.map(([a, b]) => [wrap(a + shift), wrap(b + shift)]),
   };
 }

@@ -49,7 +49,7 @@ export function wormhole(canvas: HTMLCanvasElement, opts: { animate: boolean }):
         const r = base / ring.z;
         if (r > Math.max(width, height) * 1.2) continue;
         const alpha = Math.min(1, (1 - ring.z) * 1.2) * 0.55;
-        const colours = ["212,175,55", "245,230,202", "240,145,63"];
+        const colours = ["212,175,55", "245,230,202", "201,162,240"];
         ctx.strokeStyle = `rgba(${colours[ring.hue]},${alpha})`;
         ctx.lineWidth = Math.max(0.5, 2.2 * (1 - ring.z));
         ctx.beginPath();
@@ -57,6 +57,7 @@ export function wormhole(canvas: HTMLCanvasElement, opts: { animate: boolean }):
         ctx.stroke();
       }
 
+      // The warp ends in a warm white flash; the terminal picks up from that light.
       if (flash > 0) {
         ctx.fillStyle = `rgba(255,248,230,${flash})`;
         ctx.fillRect(0, 0, width, height);

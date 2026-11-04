@@ -16,7 +16,7 @@ createRoot(document.getElementById("root")!).render(
     <AuthProvider>
       <BrowserRouter>
         <ErrorBoundary>
-          <Suspense fallback={<div className="min-h-screen bg-black" />}>
+          <Suspense fallback={<div className="min-h-screen bg-lq-bg" />}>
             <Routes>
               <Route path="/" element={<LandingPage />} />
               <Route path="/privacy" element={<PrivacyPage />} />
