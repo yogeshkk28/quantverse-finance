@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { PanelHead, ChipGroup, Change, fmtNum } from "./parts";
+import { Change, fmtNum } from "./parts";
+import { SeeAll } from "../home/ui";
 
 const INDICES = [
   { symbol: "^GSPC", label: "S&P 500" },
+  { symbol: "^IXIC", label: "Nasdaq" },
   { symbol: "^NDX", label: "Nasdaq 100" },
   { symbol: "^DJI", label: "Dow Jones" },
   { symbol: "^NSEI", label: "Nifty 50" },
   { symbol: "^BSESN", label: "Sensex" },
+  { symbol: "^NSEBANK", label: "Nifty Bank" },
   { symbol: "^N225", label: "Nikkei 225" },
   { symbol: "^FTSE", label: "FTSE 100" },
   { symbol: "^GDAXI", label: "DAX" },
@@ -28,8 +31,7 @@ interface IndexChart {
   points?: { t: number; c: number }[];
 }
 
-export default function IndicesPanel({ onOpenCharts }: { onOpenCharts: () => void }) {
-  const [symbol, setSymbol] = useState<string>("^GSPC");
+export default function IndicesPanel({ symbol, onSymbol: setSymbol }: { symbol: string; onSymbol: (symbol: string) => void }) {
   const [range, setRange] = useState<Range>("3M");
   const [data, setData] = useState<IndexChart | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,42 +56,44 @@ export default function IndicesPanel({ onOpenCharts }: { onOpenCharts: () => voi
   const cur = data?.currency ?? "";
   const s = data?.stats;
 
+  const tab = (on: boolean) =>
+    `px-2.5 py-1 rounded-md text-[12px] whitespace-nowrap border transition-colors ${
+      on ? "bg-lq-surface-2 text-lq-text border-lq-line-2" : "text-lq-muted hover:text-lq-text border-transparent"
+    }`;
+
   return (
-    <section className="lq-panel lq-rise p-5 md:p-6 flex flex-col gap-4 min-w-0" aria-labelledby="idx-h" style={{ "--lq-i": 1 } as React.CSSProperties}>
-      <PanelHead
-        id="idx-h"
-        title="Major indices"
-        aside={
-          <button type="button" onClick={onOpenCharts} className="text-[13px] text-lq-gold hover:text-lq-gold-soft">
-            Open charts
-          </button>
-        }
-      />
-      <div role="group" aria-label="Index" className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-        {INDICES.map((i) => (
-          <button key={i.symbol} type="button" className="lq-chip" aria-pressed={symbol === i.symbol} onClick={() => setSymbol(i.symbol)}>
-            {i.label}
-          </button>
-        ))}
+    <section className="lq-panel lq-rise p-5 flex flex-col gap-3 min-w-0" aria-labelledby="idx-h" style={{ "--lq-i": 1 } as React.CSSProperties}>
+      <div className="flex items-center gap-3 flex-wrap">
+        <h2 id="idx-h" className="m-0 text-[17px] font-semibold text-lq-text">
+          Markets today
+        </h2>
+        <div role="group" aria-label="Index" className="flex gap-1 overflow-x-auto min-w-0">
+          {INDICES.map((i) => (
+            <button key={i.symbol} type="button" className={tab(symbol === i.symbol)} aria-pressed={symbol === i.symbol} onClick={() => setSymbol(i.symbol)}>
+              {i.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-end gap-x-5 gap-y-2">
-        <div className="flex flex-col gap-1">
-          <span className="lq-lbl">{label}</span>
-          <span className="lq-num text-[28px] leading-none text-lq-text">
-            {data?.available && data.price != null ? `${cur}${fmtNum(data.price)}` : loading ? "…" : "—"}
-          </span>
-        </div>
+      <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+        <span className="lq-num text-[26px] leading-none text-lq-text">
+          {data?.available && data.price != null ? `${cur}${fmtNum(data.price)}` : loading ? "…" : "—"}
+        </span>
         {data?.available && (
           <span className="flex items-center gap-2 pb-0.5">
-            <Change pct={data.changePct} className="text-[14px]" />
-            <span className="lq-num text-[13px] text-lq-muted">
-              {data.change != null && `${data.change >= 0 ? "+" : "−"}${fmtNum(Math.abs(data.change))}`} today
+            <Change pct={data.changePct} className="text-[13px]" />
+            <span className="lq-num text-[12px] text-lq-muted">
+              {data.change != null && `${data.change >= 0 ? "+" : "−"}${fmtNum(Math.abs(data.change))}`} today · {label}
             </span>
           </span>
         )}
-        <div className="ml-auto">
-          <ChipGroup label="Range" options={RANGES} value={range} onChange={setRange} />
+        <div role="group" aria-label="Range" className="ml-auto flex gap-1">
+          {RANGES.map((r) => (
+            <button key={r} type="button" className={tab(range === r)} aria-pressed={range === r} onClick={() => setRange(r)}>
+              {r}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -127,7 +131,7 @@ export default function IndicesPanel({ onOpenCharts }: { onOpenCharts: () => voi
                 labelFormatter={(t) => new Date(Number(t) * 1000).toLocaleDateString()}
                 formatter={(v: number) => [`${cur}${fmtNum(v)}`, "Close"]}
               />
-              <Area type="monotone" dataKey="c" stroke={stroke} strokeWidth={1.8} fill="url(#idxFill)" isAnimationActive={false} />
+              <Area type="linear" dataKey="c" stroke={stroke} strokeWidth={1.5} fill="url(#idxFill)" isAnimationActive={false} />
             </AreaChart>
           </ResponsiveContainer>
         ) : (
@@ -137,21 +141,26 @@ export default function IndicesPanel({ onOpenCharts }: { onOpenCharts: () => voi
         )}
       </div>
 
-      <dl className="grid grid-cols-2 sm:grid-cols-5 gap-3 m-0">
-        {[
-          ["Open", s?.open],
-          ["Day high", s?.high],
-          ["Day low", s?.low],
-          ["Prev close", s?.prevClose],
-        ].map(([k, v]) => (
-          <div key={k as string} className="lq-card px-3 py-2.5 flex flex-col gap-1">
-            <dt className="lq-lbl">{k}</dt>
-            <dd className="lq-num text-[14px] m-0">{typeof v === "number" ? fmtNum(v) : "—"}</dd>
+      <dl className="m-0 flex flex-wrap gap-x-6 gap-y-1 text-[12px] pt-2 border-t border-lq-line-soft">
+        {(
+          [
+            ["Open", s?.open],
+            ["High", s?.high],
+            ["Low", s?.low],
+            ["Prev close", s?.prevClose],
+          ] as const
+        ).map(([k, v]) => (
+          <div key={k} className="flex gap-1.5">
+            <dt className="text-lq-muted">{k}</dt>
+            <dd className="lq-num m-0 text-lq-text-2">{typeof v === "number" ? fmtNum(v) : "—"}</dd>
           </div>
         ))}
-        <div className="lq-card px-3 py-2.5 flex flex-col gap-1 col-span-2 sm:col-span-1">
-          <dt className="lq-lbl">52W range</dt>
-          <dd className="lq-num text-[13px] m-0">{s ? `${fmtNum(s.low52, 0)} – ${fmtNum(s.high52, 0)}` : "—"}</dd>
+        <div className="flex gap-1.5">
+          <dt className="text-lq-muted">52W</dt>
+          <dd className="lq-num m-0 text-lq-text-2">{s ? `${fmtNum(s.low52, 0)} – ${fmtNum(s.high52, 0)}` : "—"}</dd>
+        </div>
+        <div className="ml-auto">
+          <SeeAll href={`/app/chart/${encodeURIComponent(symbol)}`}>Full chart</SeeAll>
         </div>
       </dl>
     </section>

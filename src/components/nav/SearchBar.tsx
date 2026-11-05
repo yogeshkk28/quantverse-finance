@@ -203,7 +203,7 @@ export default function SearchBar({ autoFocus, onDone, className = "" }: SearchB
   return (
     <div ref={rootRef} className={`relative ${className}`}>
       <div
-        className={`flex items-center gap-2 h-10 rounded-full border px-3.5 transition-colors bg-[rgba(16,18,26,0.75)] ${
+        className={`flex items-center gap-2 h-10 rounded-full border px-3.5 transition-colors bg-[var(--lq-field)] ${
           open ? "border-lq-gold-line shadow-[0_0_0_3px_rgba(212,175,55,0.08)]" : "border-lq-line-2 hover:border-lq-line-2"
         }`}
       >

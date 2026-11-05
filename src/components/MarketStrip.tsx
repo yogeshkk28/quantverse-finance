@@ -87,7 +87,7 @@ export default function MarketStrip() {
   );
 
   return (
-    <div className="relative z-10 border-b border-lq-line bg-[rgba(11,12,18,0.82)] backdrop-blur-sm overflow-hidden">
+    <div className="relative z-10 border-b border-lq-line bg-[var(--lq-glass-2)] backdrop-blur-sm overflow-hidden">
       <div className="animate-ticker-loop py-2.5 lq-num text-[12px] whitespace-nowrap" aria-label="Market strip">
         <div className="flex gap-10 pl-10">{items}</div>
         <div className="flex gap-10 pl-10" aria-hidden="true">
