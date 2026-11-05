@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useJson, fmtPrice } from "./home/ui";
-import { MarketToggle, MoversResponse, MOVER_TITLES } from "./home/HomeLists";
+import { MarketToggle, MoversResponse, MOVER_TITLES, MOVER_SUBTITLES } from "./home/HomeLists";
 import { fmtCompact } from "./dashboard/parts";
 import { chartPath } from "./nav/navConfig";
 
@@ -25,7 +25,7 @@ export default function MoversPage({ list: raw }: { list?: string }) {
         </Link>
         <h1 className="lq-h1">{MOVER_TITLES[list]}</h1>
         <p className="m-0 text-[13px] text-lq-muted">
-          {list === "active" ? "Ranked by today's traded value (shares × price, in USD)." : "Ranked by today's change."} Across{" "}
+          {MOVER_SUBTITLES[list]}. {list === "active" ? "Ranked by today's traded value (shares × price, in USD)." : "Ranked by today's change."} Across{" "}
           {d?.universe ?? "the"} tracked US and NSE stocks. Delayed data.
         </p>
       </div>

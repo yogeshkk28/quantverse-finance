@@ -26,6 +26,7 @@ export interface ListRow {
 export default function QuoteList({
   id,
   title,
+  subtitle,
   aside,
   rows,
   loading,
@@ -35,6 +36,7 @@ export default function QuoteList({
 }: {
   id: string;
   title: string;
+  subtitle?: string;
   aside?: React.ReactNode;
   rows: ListRow[];
   loading?: boolean;
@@ -46,9 +48,12 @@ export default function QuoteList({
   return (
     <section className="lq-panel lq-rise flex flex-col min-w-0" aria-labelledby={id}>
       <div className="flex items-center gap-2 px-5 pt-5 pb-2">
-        <h2 id={id} className="m-0 text-[17px] font-semibold text-lq-text">
-          {title}
-        </h2>
+        <div className="min-w-0">
+          <h2 id={id} className="m-0 text-[17px] font-semibold text-lq-text truncate">
+            {title}
+          </h2>
+          {subtitle && <p className="m-0 text-[11px] text-lq-muted">{subtitle}</p>}
+        </div>
         {aside && <div className="ml-auto flex items-center gap-2">{aside}</div>}
       </div>
       {loading ? (

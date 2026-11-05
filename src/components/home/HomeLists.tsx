@@ -108,7 +108,12 @@ export interface MoversResponse {
   rows: MoverRow[];
 }
 
-export const MOVER_TITLES: Record<string, string> = { gainers: "Top gainers", losers: "Top losers", active: "Most active" };
+export const MOVER_TITLES: Record<string, string> = { gainers: "Leading the market", losers: "Under pressure", active: "Money flow" };
+export const MOVER_SUBTITLES: Record<string, string> = {
+  gainers: "Biggest gains today",
+  losers: "Biggest drops today",
+  active: "Most traded by value today",
+};
 const MARKETS = [
   { key: "ALL", label: "All" },
   { key: "US", label: "US" },
@@ -140,6 +145,7 @@ export function MoversList({ list }: { list: "gainers" | "losers" | "active" }) 
     <QuoteList
       id={`mv-${list}`}
       title={MOVER_TITLES[list]}
+      subtitle={MOVER_SUBTITLES[list]}
       aside={<MarketToggle value={market} onChange={setMarket} />}
       loading={d === undefined}
       empty={d?.status === "building" ? "Ranking stocks, one moment…" : "No movers right now."}
@@ -153,7 +159,7 @@ export function MoversList({ list }: { list: "gainers" | "losers" | "active" }) 
         changePct: r.changePct,
         note: list === "active" && r.valueUsd ? `$${fmtCompact(r.valueUsd)}` : undefined,
       }))}
-      seeAll={{ href: `/app/movers/${list}${market !== "ALL" ? `?market=${market}` : ""}`, label: `See all ${MOVER_TITLES[list].toLowerCase().replace("top ", "")}` }}
+      seeAll={{ href: `/app/movers/${list}${market !== "ALL" ? `?market=${market}` : ""}`, label: "See the full list" }}
       footnote={d?.simulated ? "Sample data" : undefined}
     />
   );
